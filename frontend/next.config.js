@@ -1,6 +1,10 @@
 /** @type {import('next').NextConfig} */
-module.exports = {
+const nextConfig = {
     reactStrictMode: true,
-    images: { unoptimized: true } // easy GH pages / simple deploys
+    images: { unoptimized: true },
+    async rewrites() {
+      return [{ source: "/api/:path*", destination: "http://127.0.0.1:8003/api/:path*" }];
+    },
   };
+  export default nextConfig;
   

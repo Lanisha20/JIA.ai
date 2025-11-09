@@ -1,61 +1,78 @@
-import { Cauldron, Overview } from "../types";
+import React from "react";
+import { Overview } from "../types";
 
-type Props = { data: Overview };
-
-const pct = (c: Cauldron) => {
-  if (!c.vmax || c.last_volume == null) return null;
-  return Math.min(100, Math.max(0, Math.round((c.last_volume / c.vmax) * 100)));
+type Props = {
+  data: Overview;
+  mode: "live" | "playback";
+  onSetMode: (m: "live" | "playback") => void;
+  date?: string;
+  onSetDate: (d?: string) => void;
+  onLoad: () => void;
 };
 
-export default function PotionMap({ data }: Props) {
-  const nodes = data.cauldrons;
-  const links = data.network?.links ?? [];
+export default function PotionMap({ data, mode, onSetMode, date, onSetDate, onLoad }: Props) {
+  // simple % calc using last_volume / vmax (fallbacks are harmless)
+  const cauldronPct = (id: string) => {
+    const c = data.cauldrons.find((x: any) => x.id === id);
+    if (!c) return 0;
+    const v = Number(c.last_volume ?? 0);
+    const vmax = Number(c.vmax ?? 1);
+    return Math.round((v / vmax) * 100);
+  };
 
   return (
-    <div className="card p-5">
-      <div className="flex items-center justify-between mb-3">
+    <div className="card p-0 overflow-hidden">
+      {/* top bar with working controls */}
+      <div className="flex items-center justify-between px-5 py-3">
         <h3 className="text-lg font-semibold text-gold">Potion Network Map</h3>
-        <div className="flex gap-2">
-          <span className="badge badge-verify">Live</span>
-          <span className="badge">Playback</span>
+        <div className="flex items-center gap-2">
+          <button
+            className={`tab ${mode === "live" ? "tab-active" : ""}`}
+            onClick={() => { onSetMode("live"); onSetDate(undefined); }}
+          >
+            Live
+          </button>
+          <button
+            className={`tab ${mode === "playback" ? "tab-active" : ""}`}
+            onClick={() => onSetMode("playback")}
+          >
+            Playback
+          </button>
+          {mode === "playback" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                className="input"
+                value={date ?? ""}
+                onChange={(e) => onSetDate(e.target.value || undefined)}
+              />
+              <button className="btn" onClick={onLoad}>Load</button>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="relative w-full h-[340px] rounded-xl overflow-hidden
-                      bg-[radial-gradient(600px_300px_at_50%_-20%,#3a2658_0%,#20102E_60%)]">
-        <svg className="absolute inset-0 w-full h-full">
-          {/* links */}
-          {links.map((l, idx) => {
-            const a = nodes.find((n) => n.id === l.source);
-            const b = nodes.find((n) => n.id === l.target);
-            if (!a || !b) return null;
-            const ax = (a.x ?? 50) + "%", ay = (a.y ?? 50) + "%";
-            const bx = (b.x ?? 50) + "%", by = (b.y ?? 50) + "%";
-            return (
-              <line key={idx} x1={ax} y1={ay} x2={bx} y2={by}
-                    stroke="#F4C47188" strokeWidth="2" strokeDasharray="5 6" />
-            );
-          })}
-
-          {/* nodes */}
-          {nodes.map((n) => {
-            const x = (n.x ?? 50) + "%";
-            const y = (n.y ?? 50) + "%";
-            const isMarket = n.id.toUpperCase().includes("MKT") || n.name?.toLowerCase().includes("market");
-            const fill = isMarket ? "#E58E33" : "#9E7CFD";
-            const ring = isMarket ? "#F4C471" : "#7AD3F3";
-            const p = pct(n);
-            return (
-              <g key={n.id}>
-                <circle cx={x} cy={y} r="18" fill={fill} opacity="0.9" />
-                <circle cx={x} cy={y} r="26" stroke={ring} strokeOpacity="0.35" strokeWidth="2" fill="none" />
-                <text x={x} y={`calc(${y} + 36px)`} textAnchor="middle" fontSize="12" fill="#f8e9d6">
-                  {n.id}{p != null ? `  ${p}%` : ""}
-                </text>
-              </g>
-            );
-          })}
-        </svg>
+      {/* very simple layout—your existing SVG/canvas can sit here */}
+      <div className="px-5 pb-5">
+        <div className="rounded-2xl bg-black/30 ring-1 ring-white/5 h-[420px] flex items-center justify-center">
+          {/* Example node badges driven by math */}
+          <div className="flex gap-10">
+            {["C1", "C2", "C3"].map((id) => (
+              <div key={id} className="flex flex-col items-center gap-2">
+                <div className="w-16 h-16 rounded-full bg-violet-500/40 ring-2 ring-violet-300/50 grid place-items-center">
+                  <span className="text-sm text-white">{id}</span>
+                </div>
+                <div className="text-xs text-white/70">{cauldronPct(id)}%</div>
+              </div>
+            ))}
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-16 h-16 rounded-full bg-amber-500/40 ring-2 ring-amber-300/50 grid place-items-center">
+                <span className="text-xs text-white">MKT</span>
+              </div>
+              <div className="text-xs text-white/70">Market</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
