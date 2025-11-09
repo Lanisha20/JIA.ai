@@ -50,10 +50,12 @@ export default function Home() {
           {data && <LogsTable matches={matches} drains={drains} />}
         </div>
         <div className="space-y-6">
-          <ActionsPanel onRefresh={(promise) => (promise ? promise.then(() => fetchOverview()) : fetchOverview())} />
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ActionsPanel onRefresh={fetchOverview} />
+            {data && <AgentTrace trace={trace} />}
+          </div>
           {data && <AlertsPanel findings={findings} />}
           {data && <ForecastCard title="Potion Level Forecast" f={primaryForecast} />}
-          {data && <AgentTrace trace={trace} />}
         </div>
       </section>
 

@@ -60,9 +60,12 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
     ? { [cauldrons[0].id]: forecast }
     : forecast;
 
+  const network = state.network || { nodes: [], links: [] };
+
   return {
     date: new Date().toISOString(),
     cauldrons,
+    network,
     drain_events: drains,
     matches,
     findings,

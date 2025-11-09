@@ -14,6 +14,7 @@ from .models import (
     CauldronLevel,
     DrainEvent,
     MatchRecord,
+    NetworkRoute,
     Ticket,
 )
 
@@ -244,12 +245,15 @@ def build_state_overview(session: Session) -> Dict[str, Any]:
     if fills:
         avg_fill = sum(fills) / len(fills)
 
+    network = _build_network_graph(cauldron_states, session)
+
     return {
         "cauldrons": cauldron_states,
         "tickets": tickets,
         "matches": matches,
         "drain_events": drains,
         "agent_trace": trace,
+        "network": network,
         "summary": {
             "active_cauldrons": len(cauldron_states),
             "open_tickets": len([t for t in tickets if t["status"] not in {"closed", "delivered"}]),
@@ -257,6 +261,29 @@ def build_state_overview(session: Session) -> Dict[str, Any]:
             "recent_anomalies": len(drains),
         },
     }
+
+
+def _build_network_graph(cauldrons: List[Dict[str, Any]], session: Session) -> Dict[str, Any]:
+    nodes = [
+        {
+            "id": c["cauldron_id"],
+            "x": c.get("metadata", {}).get("x"),
+            "y": c.get("metadata", {}).get("y"),
+        }
+        for c in cauldrons
+    ]
+
+    routes = session.query(NetworkRoute).all()
+    links = [
+        {
+            "source": route.origin,
+            "target": route.destination,
+        }
+        for route in routes
+        if route.origin and route.destination
+    ]
+
+    return {"nodes": nodes, "links": links}
 
 
 def _safe_float(value: Any) -> Optional[float]:

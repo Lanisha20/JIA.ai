@@ -8,7 +8,21 @@ const pct = (c: Cauldron) => {
 };
 
 export default function PotionMap({ data }: Props) {
-  const nodes = data.cauldrons || [];
+  const networkNodes = data.network?.nodes?.length ? data.network.nodes : undefined;
+  const nodes = networkNodes
+    ? networkNodes.map((node) => {
+        const cauldron = data.cauldrons.find((c) => c.id === node.id);
+        return {
+          id: node.id,
+          x: node.x,
+          y: node.y,
+          vmax: cauldron?.vmax,
+          last_volume: cauldron?.last_volume,
+          fill_percent: cauldron?.fill_percent,
+          name: cauldron?.name ?? node.id,
+        } as Cauldron;
+      })
+    : data.cauldrons || [];
   const links = data.network?.links ?? [];
 
   return (
