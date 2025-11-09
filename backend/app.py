@@ -27,6 +27,25 @@ app.add_middleware(
 def healthcheck() -> dict:
     return {"ok": True}
 
+@app.get("/api/overview")
+def get_overview(mode: str = "live", date: str | None = None):
+    data = run_demo(mode=mode, date=date)
+
+    # ... your coordinate/link injection ...
+
+    # Ensure forecast exists (either a single series or map by cauldron)
+    if "forecast" not in data:
+        # minimal safe fallback so the UI draws
+        data["forecast"] = {
+            "overflow_eta": None,
+            "series": [
+                # [iso_ts, volume] points
+            ]
+        }
+
+    return data
+
+
 
 app.include_router(tool_router)
 app.include_router(state_router)

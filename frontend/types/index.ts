@@ -26,9 +26,9 @@ export type Finding = {
 };
 
 export type Forecast = {
-  overflow_eta: string | null;
-  series: [string, number][];
-};
+    overflow_eta?: string | null;
+    series: [string, number][];
+};  
 
 export type Cauldron = {
   id: string;
