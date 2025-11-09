@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export default function Deer() {
   return (
-    <div className="pointer-events-none fixed right-6 top-6 opacity-90">
+    <div className="pointer-events-none fixed right-6 top-6 opacity-70">
       <Image
         src="/images/deer-head.png"
         alt="Mystical Deer"
