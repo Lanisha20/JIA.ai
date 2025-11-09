@@ -1,0 +1,70 @@
+/* Reset and Base Styles */
+* {
+  border-color: #1f2937;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  background-color: #030712;
+  color: #f9fafb;
+}
+
+/* Custom scrollbar styles */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+}
+
+.scrollbar-thumb-cyan::-webkit-scrollbar-thumb {
+  background: rgba(69, 208, 229, 0.3);
+}
+
+.scrollbar-thumb-purple::-webkit-scrollbar-thumb {
+  background: rgba(166, 125, 255, 0.3);
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Glassmorphism effects */
+.glass {
+  background: rgba(28, 27, 47, 0.4);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(69, 208, 229, 0.2);
+}
+
+/* Star twinkling animation */
+@keyframes twinkle {
+  0%, 100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Glow animations */
+@keyframes glow {
+  0%, 100% {
+    filter: drop-shadow(0 0 5px rgba(69, 208, 229, 0.5));
+  }
+  50% {
+    filter: drop-shadow(0 0 15px rgba(69, 208, 229, 0.8));
+  }
+}
+
+.glow-animate {
+  animation: glow 2s ease-in-out infinite;
+}

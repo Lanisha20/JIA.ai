@@ -1,0 +1,121 @@
+/* Main App Container */
+.app-container {
+  min-height: 100vh;
+  background-color: #1a0a2e;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Background Decorations */
+.background-decorations {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* Stars */
+.star {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background-color: white;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* Clouds */
+.cloud {
+  position: absolute;
+  background-color: #2d1b47;
+  border-radius: 9999px;
+  filter: blur(40px);
+}
+
+.cloud-1 {
+  top: 40px;
+  left: 40px;
+  width: 160px;
+  height: 80px;
+  opacity: 0.6;
+}
+
+.cloud-2 {
+  top: 80px;
+  right: 80px;
+  width: 240px;
+  height: 96px;
+  opacity: 0.5;
+  filter: blur(60px);
+}
+
+.cloud-3 {
+  top: 160px;
+  left: 33.333%;
+  width: 192px;
+  height: 80px;
+  opacity: 0.4;
+  filter: blur(40px);
+}
+
+/* Mountains */
+.mountains {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 128px;
+  background: linear-gradient(to top, #0d0620, transparent);
+  opacity: 0.8;
+}
+
+/* Witch Decoration */
+.witch-decoration {
+  position: absolute;
+  top: 96px;
+  right: 128px;
+  font-size: 36px;
+  opacity: 0.8;
+}
+
+/* Cauldron Decoration */
+.cauldron-decoration {
+  position: absolute;
+  bottom: 80px;
+  right: 80px;
+  font-size: 48px;
+  opacity: 0.6;
+}
+
+/* Main Content */
+.main-content {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 32px 24px;
+  position: relative;
+  z-index: 10;
+}
+
+/* Grid Container */
+.grid-container {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+
+@media (min-width: 1024px) {
+  .grid-container {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .grid-left {
+    grid-column: span 2 / span 2;
+  }
+}
+
+/* Right Column Spacing */
+.grid-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
