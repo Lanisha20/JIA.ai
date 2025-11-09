@@ -2,3 +2,7 @@
 # Next.js build
 frontend/.next
 frontend/node_modules
+
+# Next.js build
+frontend/.next
+frontend/node_modules
