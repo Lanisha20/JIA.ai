@@ -1,0 +1,48 @@
+{
+  "tools": [
+    {
+      "name": "detect",
+      "endpoint": "/tools/detect",
+      "description": "Analyze cauldron level history to flag anomalies.",
+      "payload_schema": {
+        "cauldron_ids": "Optional[List[str]]",
+        "threshold": "float (percentage change trigger)"
+      }
+    },
+    {
+      "name": "match",
+      "endpoint": "/tools/match",
+      "description": "Match tickets against level deltas for discrepancies.",
+      "payload_schema": {
+        "cauldron_ids": "Optional[List[str]]",
+        "persist": "bool"
+      }
+    },
+    {
+      "name": "audit",
+      "endpoint": "/tools/audit",
+      "description": "Deep dive on a single cauldron, returning traces, tickets, and matches.",
+      "payload_schema": {
+        "cauldron_id": "str"
+      }
+    },
+    {
+      "name": "forecast",
+      "endpoint": "/tools/forecast",
+      "description": "Predict fill % for the next N hours using recent slopes.",
+      "payload_schema": {
+        "cauldron_ids": "Optional[List[str]]",
+        "horizon_hours": "int"
+      }
+    },
+    {
+      "name": "route",
+      "endpoint": "/tools/route",
+      "description": "Return the lightest known path between depots using the EOG network graph.",
+      "payload_schema": {
+        "origin": "str",
+        "destination": "str"
+      }
+    }
+  ]
+}
