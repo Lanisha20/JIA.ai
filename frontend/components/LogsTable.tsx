@@ -1,14 +1,14 @@
 import { MatchRow, DrainEvent } from "../types";
 
 export default function LogsTable({ matches, drains }: { matches: MatchRow[]; drains: DrainEvent[] }) {
-  const rows = (matches || []).map((m) => {
+  const rows = matches.map((m) => {
     const d = drains.find((x) => x.id === m.drain_event_id);
     return {
       time: d ? new Date(d.t_end).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--",
       cauldron: d?.cauldron_id ?? "—",
       volume: d?.true_volume ?? 0,
       ticket: m.ticket_id,
-      diff: m.diff_volume,
+      diff: m.diff_volume
     };
   });
 
@@ -16,9 +16,6 @@ export default function LogsTable({ matches, drains }: { matches: MatchRow[]; dr
     <div className="card p-5">
       <h3 className="text-lg font-semibold text-gold mb-3">Drain & Ticket Logs</h3>
       <div className="overflow-hidden rounded-xl border border-[rgba(244,196,113,0.15)]">
-        {rows.length === 0 && (
-          <div className="px-4 py-6 text-sm text-white/70">No drains or matches yet.</div>
-        )}
         <table className="w-full text-sm">
           <thead className="bg-[rgba(244,196,113,0.07)] text-white/90">
             <tr>
