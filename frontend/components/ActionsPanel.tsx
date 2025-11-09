@@ -1,120 +1,69 @@
-import { useState } from "react";
-import { API_BASE } from "../lib/api";
-
-type ActionConfig = {
-  label: string;
-  description: string;
-  endpoint: string;
-  body: Record<string, unknown>;
-  accent: "aqua" | "amber" | "lavender" | "rose" | "mint";
-};
-
-const ACTIONS: ActionConfig[] = [
-  {
-    label: "Detect Drain Events",
-    description: "Runs the Nemotron detector over the latest telemetry to log new drain events.",
-    endpoint: "/tools/detect",
-    body: {},
-    accent: "aqua",
-  },
-  {
-    label: "Match Tickets",
-    description: "Greedy matcher pairs ticket volumes with recent drain events.",
-    endpoint: "/tools/match",
-    body: {},
-    accent: "lavender",
-  },
-  {
-    label: "Planner (Detect + Match)",
-    description: "Nemotron planner decides the best next steps and calls tools in order.",
-    endpoint: "/planner/run",
-    body: { goal: "detect anomalies and match tickets", context: {} },
-    accent: "amber",
-  },
-  {
-    label: "Audit Discrepancies",
-    description: "Auditor flags under / over reports plus unmatched tickets or drains.",
-    endpoint: "/tools/audit",
-    body: {},
-    accent: "rose",
-  },
-  {
-    label: "Demo Anomaly",
-    description: "Inject a synthetic drain event for cauldron_001 to test end‑to‑end flows.",
-    endpoint: "/demo/anomaly",
-    body: { cauldron_id: "cauldron_001" },
-    accent: "mint",
-  },
-];
-
-function ActionCard({ config, loading, onRun }: { config: ActionConfig; loading: string | null; onRun: () => void }) {
-  const colors: Record<ActionConfig["accent"], string> = {
-    aqua: "from-[#2EE4FF33]",
-    amber: "from-[#F4C47133]",
-    lavender: "from-[#A58CFF33]",
-    rose: "from-[#FF7B7B33]",
-    mint: "from-[#7BF5D233]",
-  };
-  return (
-    <div className={`rounded-2xl border border-white/10 bg-gradient-to-br ${colors[config.accent]} to-transparent p-4 transition-transform ${loading === config.label ? "scale-[1.02] border-white/40" : ""}`}>
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <h4 className="text-sm font-semibold text-white">{config.label}</h4>
-        <button className={`badge ${loading === config.label ? "badge-verify" : ""}`} onClick={onRun} disabled={loading === config.label}>
-          {loading === config.label ? "Running..." : "Run"}
-        </button>
-      </div>
-      <p className="text-xs text-white/70 leading-relaxed">{config.description}</p>
-    </div>
-  );
-}
+import React from "react";
 
 export default function ActionsPanel({ onRefresh }: { onRefresh: () => void }) {
-  const [log, setLog] = useState<string[]>([]);
-  const [loading, setLoading] = useState<string | null>(null);
-
-  const run = async (action: ActionConfig) => {
-    try {
-      setLoading(action.label);
-      const res = await fetch(`${API_BASE}${action.endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(action.body),
-      });
-      const payload = await res.text();
-      setLog((prev) => [`${action.label}: ${res.status} ${res.statusText}`, payload, ...prev].slice(0, 8));
-      onRefresh();
-    } catch (error: any) {
-      setLog((prev) => [`${action.label}: ${error?.message ?? "request failed"}`, ...prev].slice(0, 8));
-    } finally {
-      setLoading(null);
-    }
-  };
-
   return (
-    <div className="card p-5 space-y-4">
+    <div className="card p-5 space-y-5">
+      {/* Header Row */}
       <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gold">Agent Actions</h3>
-          <p className="text-xs text-white/70">Run tools or a full Nemotron plan directly from the dashboard.</p>
-        </div>
-        <button className="badge badge-verify" onClick={onRefresh}>
+        <h3 className="text-lg font-semibold text-gold">Agent Actions</h3>
+        <button
+          onClick={onRefresh}
+          className="badge badge-verify hover:bg-[rgba(244,196,113,0.25)] transition"
+        >
           Refresh data
         </button>
       </div>
 
-      <div className="space-y-3">
-        {ACTIONS.map((action) => (
-          <ActionCard key={action.label} config={action} loading={loading} onRun={() => run(action)} />
-        ))}
-      </div>
+      <p className="text-sm text-white/70 leading-snug">
+        Run tools or a full Nemotron plan directly from the dashboard.
+      </p>
 
-      <div className="mt-2 bg-black/20 rounded-2xl px-4 py-3 max-h-48 overflow-auto text-xs text-white/80 space-y-2">
-        {log.length === 0 && <div>No actions yet. Use the cards above to exercise integrations.</div>}
-        {log.map((entry, idx) => (
-          <div key={idx} className="border-b border-white/5 pb-1 whitespace-pre-wrap break-words">
-            {entry}
-          </div>
-        ))}
+      {/* Tool Buttons Grid */}
+      <div className="grid gap-4">
+        <ActionCard
+          title="Detect Drain Events"
+          desc="Runs the Nemotron detector over the latest telemetry to log new drain events."
+          btn="Run"
+        />
+        <ActionCard
+          title="Match Tickets"
+          desc="Greedy matcher pairs ticket volumes with recent drain events."
+          btn="Run"
+        />
+        <ActionCard
+          title="Planner (Detect + Match)"
+          desc="Nemotron planner decides the best next steps and calls tools in order."
+          btn="Run"
+        />
+        <ActionCard
+          title="Audit Discrepancies"
+          desc="Auditor flags under / over reports plus unmatched tickets or drains."
+          btn="Run"
+        />
+      </div>
+    </div>
+  );
+}
+
+function ActionCard({
+  title,
+  desc,
+  btn,
+}: {
+  title: string;
+  desc: string;
+  btn: string;
+}) {
+  return (
+    <div className="p-4 rounded-xl bg-gradient-to-br from-[rgba(80,70,120,0.3)] to-[rgba(30,20,60,0.2)] border border-white/10 hover:border-white/20 transition">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-white font-semibold text-sm mb-1 leading-tight">
+            {title}
+          </h4>
+          <p className="text-xs text-white/60 leading-snug">{desc}</p>
+        </div>
+        <button className="btn px-3 py-1 text-xs shrink-0">{btn}</button>
       </div>
     </div>
   );
