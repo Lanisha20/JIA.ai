@@ -40,3 +40,11 @@ body {
 /* layout helpers */
 .container-ppd { @apply max-w-7xl mx-auto px-6; }
 .grid-ppd      { @apply grid grid-cols-1 lg:grid-cols-3 gap-6; }
+
+body {
+    @apply bg-cover bg-center bg-no-repeat;
+    background-image: url('/images/bg.png');
+    background-attachment: fixed;
+    background-color: #1a1024; /* fallback deep purple tone */
+  }
+  
