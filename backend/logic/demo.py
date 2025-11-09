@@ -1,7 +1,11 @@
 # backend/logic/demo.py
 # works directly:  python demo.py
 
+<<<<<<< HEAD
+import os, sys
+=======
 import os, sys, json
+>>>>>>> origin/dev/frontend-jo
 # add the parent of "logic" (the "backend" folder) to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -10,6 +14,8 @@ from logic.match import run as match_run
 from logic.audit import run as audit_run
 from logic.forecast import run as forecast_run
 
+<<<<<<< HEAD
+=======
 def maybe_load_fixture():
     if len(sys.argv) > 1:
         with open(sys.argv[1]) as f:
@@ -23,6 +29,7 @@ def main():
         global RAW_CAULDRONS, RAW_LEVELS, RAW_TICKETS
         RAW_CAULDRONS, RAW_LEVELS, RAW_TICKETS = loaded
 
+>>>>>>> origin/dev/frontend-jo
 
 # ===== Demo data =====
 RAW_CAULDRONS = [
@@ -47,7 +54,11 @@ RAW_LEVELS = [
 ]
 
 RAW_TICKETS = [
+<<<<<<< HEAD
+    {"id": "T95", "date": "2025-11-07", "volume": 95.0, "cauldronId": None}
+=======
    {"id": "T95", "date": "2025-11-07", "volume": 10.0, "cauldronId": None}
+>>>>>>> origin/dev/frontend-jo
 ]
 DATE = "2025-11-07"
 
@@ -110,4 +121,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+<<<<<<< HEAD
+=======
 #testing 
+>>>>>>> origin/dev/frontend-jo
