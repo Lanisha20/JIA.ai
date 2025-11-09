@@ -3,6 +3,7 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
   return (
     <div className="card p-5">
       <h3 className="text-lg font-semibold text-gold mb-3">Nemotron Planner — Agent Trace</h3>
+      {trace.length === 0 && <div className="text-sm text-white/70">No planner activity yet.</div>}
       <ol className="space-y-2">
         {trace.map(t => (
           <li key={t.step} className="flex items-start gap-3">

@@ -8,7 +8,7 @@ const pct = (c: Cauldron) => {
 };
 
 export default function PotionMap({ data }: Props) {
-  const nodes = data.cauldrons;
+  const nodes = data.cauldrons || [];
   const links = data.network?.links ?? [];
 
   return (
@@ -23,6 +23,11 @@ export default function PotionMap({ data }: Props) {
 
       <div className="relative w-full h-[340px] rounded-xl overflow-hidden
                       bg-[radial-gradient(600px_300px_at_50%_-20%,#3a2658_0%,#20102E_60%)]">
+        {nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center text-white/70 text-sm">
+            No cauldron telemetry yet.
+          </div>
+        )}
         <svg className="absolute inset-0 w-full h-full">
           {/* links */}
           {links.map((l, idx) => {

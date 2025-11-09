@@ -8,17 +8,35 @@ import AlertsPanel from "../components/AlertsPanel";
 import LogsTable from "../components/LogsTable";
 import ForecastCard from "../components/ForecastCard";
 import AgentTrace from "../components/AgentTrace";
+import ActionsPanel from "../components/ActionsPanel";
 import Poyo from "../components/Poyo";
 import Deer from "../components/Deer";
 
 export default function Home() {
-    const [data, setData] = useState<Overview | null>(null);
+  const [data, setData] = useState<Overview | null>(null);
+
+  const fetchOverview = () => getOverview().then(setData);
 
   useEffect(() => {
-    getOverview().then(setData);
-    const id = setInterval(() => getOverview().then(setData), 5000);
+    fetchOverview();
+    const id = setInterval(fetchOverview, 5000);
     return () => clearInterval(id);
   }, []);
+
+  const findings = data?.findings ?? [];
+  const drains = data?.drain_events ?? [];
+  const matches = data?.matches ?? [];
+  const trace = data?.trace ?? [];
+  const primaryForecast = (() => {
+    if (!data?.forecast) return undefined;
+    const forecast: any = data.forecast;
+    if (forecast.series) return forecast;
+    if (typeof forecast === "object") {
+      const values = Object.values(forecast as Record<string, any>);
+      return values[0];
+    }
+    return undefined;
+  })();
 
   return (
     <main className="container-ppd">
@@ -29,12 +47,13 @@ export default function Home() {
       <section className="grid-ppd">
         <div className="lg:col-span-2 space-y-6">
           {data && <PotionMap data={data} />}
-          {data && <LogsTable matches={data.matches} drains={data.drain_events} />}
+          {data && <LogsTable matches={matches} drains={drains} />}
         </div>
         <div className="space-y-6">
-          {data && <AlertsPanel findings={data.findings} />}
-          {data && <ForecastCard title="Potion Level Forecast" f={(data.forecast as any)["C3"] || (data.forecast as any)} />}
-          {data && <AgentTrace trace={data.trace || []} />}
+          <ActionsPanel onRefresh={(promise) => (promise ? promise.then(() => fetchOverview()) : fetchOverview())} />
+          {data && <AlertsPanel findings={findings} />}
+          {data && <ForecastCard title="Potion Level Forecast" f={primaryForecast} />}
+          {data && <AgentTrace trace={trace} />}
         </div>
       </section>
 
