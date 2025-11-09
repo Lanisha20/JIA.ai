@@ -18,7 +18,7 @@ export default function DemoLab({ onAddDrain, onAddAlert, onAddForecast, onClear
           <h3 className="text-lg font-semibold text-gold">Scenario Lab</h3>
           <p className="text-xs text-white/60">Inject sample drains, tickets, forecasts, and alerts.</p>
         </div>
-        <span className="badge badge-verify">no backend</span>
+        <span className="badge badge-verify">scenario</span>
       </div>
 
       <div className="grid gap-3">

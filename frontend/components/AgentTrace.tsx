@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { TraceStep } from "../types";
 
 const PAGE_SIZE = 10;
@@ -71,8 +71,12 @@ const timeFormatter =
 
 function formatTime(value?: string) {
   if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
+  const needsOffset = !!value && !/(?:[zZ]|[+-]\d{2}:\d{2})$/.test(value);
+  const normalized = needsOffset ? `${value}Z` : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
   if (timeFormatter) {
     try {
       return timeFormatter.format(date);
@@ -130,9 +134,11 @@ function computeSizeMetrics(step: TraceStep): { ratio: number; label: string } {
 }
 
 export default function AgentTrace({ trace = [] as TraceStep[] }) {
-  const [showAll, setShowAll] = useState(false);
-  const stepsToShow = showAll ? trace : trace.slice(0, PAGE_SIZE);
-  const hasMore = trace.length > PAGE_SIZE;
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil((trace?.length ?? 0) / PAGE_SIZE));
+  const pageIndex = Math.min(page, totalPages - 1);
+  const start = pageIndex * PAGE_SIZE;
+  const stepsToShow = trace.slice(start, start + PAGE_SIZE);
 
   const entries = useMemo<DecoratedTrace[]>(
     () =>
@@ -154,6 +160,13 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
     [stepsToShow],
   );
 
+  useEffect(() => {
+    setPage((prev) => Math.min(prev, Math.max(0, totalPages - 1)));
+  }, [totalPages]);
+
+  const canPrev = pageIndex > 0;
+  const canNext = pageIndex < totalPages - 1;
+
   return (
     <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
@@ -161,11 +174,25 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
           <h3 className="text-lg font-semibold text-gold">Nemotron Planner — Agent Trace</h3>
           <p className="text-[11px] text-white/60">Live log of every autonomous step taken in this session.</p>
         </div>
-        {hasMore && (
-          <button className="badge" onClick={() => setShowAll((prev) => !prev)}>
-            {showAll ? "Show less" : `Show ${trace.length - PAGE_SIZE} more`}
+        <div className="flex items-center gap-2">
+          <button
+            className={`badge ${!canPrev ? "opacity-40 cursor-not-allowed" : ""}`}
+            onClick={() => canPrev && setPage((prev) => Math.max(0, prev - 1))}
+            disabled={!canPrev}
+          >
+            ← Prev
           </button>
-        )}
+          <span className="text-xs text-white/60">
+            {Math.min(trace.length, start + 1)}-{Math.min(trace.length, start + entries.length)} / {trace.length || 0}
+          </span>
+          <button
+            className={`badge ${!canNext ? "opacity-40 cursor-not-allowed" : ""}`}
+            onClick={() => canNext && setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+            disabled={!canNext}
+          >
+            Next →
+          </button>
+        </div>
       </div>
 
       {trace.length === 0 && <div className="text-sm text-white/70">No planner activity yet.</div>}

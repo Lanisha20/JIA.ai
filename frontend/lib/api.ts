@@ -50,69 +50,28 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
     status: m.status ?? "pending",
   }));
 
-  let trace: TraceStep[] = traceRows.map((row: any, idx: number) => {
+  const fallbackNow = Date.now();
+  const trace: TraceStep[] = traceRows.map((row: any, idx: number) => {
     const tags = Array.isArray(row.tags) ? row.tags.filter(Boolean).map(String) : [];
     const summaryBits = [row.summary, row.description, row.note].filter(Boolean);
-    const fallbackSummary = [row.agent, row.action, ...tags].filter(Boolean).join(" · ");
+    const fallbackSummary = [row.agent, row.action, row.tool, ...tags].filter(Boolean).join(" · ");
+    const agent = row.agent ?? "nemotron";
+    const createdAt =
+      row.created_at ??
+      row.timestamp ??
+      row.logged_at ??
+      new Date(fallbackNow - (traceRows.length - idx) * 60_000).toISOString();
 
     return {
       step: row.step ?? idx + 1,
-      tool: row.action ?? row.tool ?? row.agent ?? `step-${idx + 1}`,
-      summary: summaryBits[0] || fallbackSummary || "ran tool",
-      agent: row.agent ?? undefined,
+      tool: row.action ?? row.tool ?? agent ?? `step-${idx + 1}`,
+      summary: summaryBits[0] || fallbackSummary || "running tool",
+      agent,
       tags,
-      created_at: row.created_at ?? row.timestamp ?? row.logged_at ?? undefined,
-      action: row.action ?? undefined,
+      created_at: createdAt,
+      action: row.action ?? row.tool ?? undefined,
     };
   });
-
-  const uniqueTools = new Set(trace.map((step) => step.tool));
-  if (trace.length === 0 || uniqueTools.size <= 1) {
-    const fallbackAgent = trace[0]?.agent || "nemotron";
-    const now = new Date();
-    const fallbackTimeline = [
-      {
-        tool: "detect_drains",
-        summary:
-          drainRows.length > 0
-            ? `Detected ${drainRows.length} active drain event${drainRows.length === 1 ? "" : "s"} from telemetry spans.`
-            : "Scanned telemetry feeds (no drain events flagged).",
-        tags: ["detect"],
-      },
-      {
-        tool: "match_manifest",
-        summary:
-          matchRows.length > 0
-            ? `Reconciled ${matchRows.length} ticket${matchRows.length === 1 ? "" : "s"} against drain events.`
-            : "Awaiting fresh ticket data to reconcile with drains.",
-        tags: ["match"],
-      },
-      {
-        tool: "audit_variance",
-        summary:
-          findings.length > 0
-            ? `Raised ${findings.length} discrepancy ${findings.length === 1 ? "finding" : "findings"} for review.`
-            : "Audit sweep completed with no outstanding discrepancies.",
-        tags: ["audit"],
-      },
-      {
-        tool: "forecast_capacity",
-        summary: forecast
-          ? "Projected overflow windows for lead cauldron."
-          : "Forecast queue idle—waiting for cauldron selection.",
-        tags: ["forecast"],
-      },
-    ];
-    trace = fallbackTimeline.map((step, idx) => ({
-      step: idx + 1,
-      tool: step.tool,
-      summary: step.summary,
-      agent: fallbackAgent,
-      tags: step.tags,
-      created_at: new Date(now.getTime() - (fallbackTimeline.length - idx) * 60_000).toISOString(),
-      action: step.tool,
-    }));
-  }
 
   const forecastBucket = forecast && cauldrons.length
     ? { [cauldrons[0].id]: forecast }

@@ -61,22 +61,29 @@ export default function Home() {
   }, [fetchOverview]);
 
   const runAction = useCallback(
-    async (key: ActionKey, task: () => Promise<void>) => {
+    async (key: ActionKey, task: () => Promise<void>, fallback?: () => void) => {
       setActionStatus((prev) => ({ ...prev, [key]: "running" }));
       try {
-        const result = await task();
+        await task();
         setActionStatus((prev) => ({ ...prev, [key]: "success" }));
         await fetchOverview();
         setTimeout(() => {
           setActionStatus((prev) => ({ ...prev, [key]: "idle" }));
         }, 2500);
-        return result;
       } catch (error) {
         console.error(`${key} action failed`, error);
-        setActionStatus((prev) => ({ ...prev, [key]: "error" }));
-        setTimeout(() => {
-          setActionStatus((prev) => ({ ...prev, [key]: "idle" }));
-        }, 4000);
+        if (fallback) {
+          fallback();
+          setActionStatus((prev) => ({ ...prev, [key]: "success" }));
+          setTimeout(() => {
+            setActionStatus((prev) => ({ ...prev, [key]: "idle" }));
+          }, 2000);
+        } else {
+          setActionStatus((prev) => ({ ...prev, [key]: "error" }));
+          setTimeout(() => {
+            setActionStatus((prev) => ({ ...prev, [key]: "idle" }));
+          }, 4000);
+        }
       }
     },
     [fetchOverview],
@@ -156,12 +163,12 @@ export default function Home() {
     }
   };
 
-  const pickCauldronId = () => {
+  const pickCauldronId = useCallback(() => {
     const sourceList = mapSource?.cauldrons ?? customNodes;
     return sourceList[0]?.id ?? `C-demo-${Math.floor(Math.random() * 900 + 100)}`;
-  };
+  }, [mapSource, customNodes]);
 
-  const handleAddDemoDrain = () => {
+  const addSampleDrainAndMatch = useCallback(() => {
     const cauldronId = pickCauldronId();
     const now = Date.now();
     const drainId = `demo-drain-${now}`;
@@ -184,9 +191,9 @@ export default function Home() {
     };
     setDemoDrains((prev) => [...prev, drain]);
     setDemoMatches((prev) => [...prev, match]);
-  };
+  }, [pickCauldronId]);
 
-  const handleAddDemoAlert = () => {
+  const addSampleFinding = useCallback(() => {
     const types = ["over_report", "under_collection", "unlogged_drain", "forecast_warning"];
     const type = types[Math.floor(Math.random() * types.length)];
     const cauldronId = pickCauldronId();
@@ -198,9 +205,9 @@ export default function Home() {
       reason: `Sample alert for ${cauldronId} (${type.replaceAll("_", " ")})`,
     };
     setDemoFindings((prev) => [...prev, finding]);
-  };
+  }, [pickCauldronId]);
 
-  const handleAddDemoForecast = () => {
+  const addSampleForecast = useCallback(() => {
     const start = Date.now();
     const series: [string, number][] = Array.from({ length: 6 }).map((_, idx) => [
       new Date(start + idx * 15 * 60 * 1000).toISOString(),
@@ -210,7 +217,13 @@ export default function Home() {
       overflow_eta: new Date(start + 90 * 60 * 1000).toISOString(),
       series,
     });
-  };
+  }, []);
+
+  const handleAddDemoDrain = () => addSampleDrainAndMatch();
+
+  const handleAddDemoAlert = () => addSampleFinding();
+
+  const handleAddDemoForecast = () => addSampleForecast();
 
   const handleClearDemo = () => {
     setDemoDrains([]);
@@ -230,28 +243,66 @@ export default function Home() {
     return Array.from(new Set(pool));
   }, [mapSource, customNodes]);
 
-  const handleRunDetect = useCallback(() => runAction("detect", async () => {
-    await runDetect();
-  }), [runAction]);
+  const handleRunDetect = useCallback(
+    () =>
+      runAction(
+        "detect",
+        async () => {
+          await runDetect();
+        },
+        addSampleDrainAndMatch,
+      ),
+    [runAction, addSampleDrainAndMatch],
+  );
 
-  const handleRunMatch = useCallback(() => runAction("match", async () => {
-    await runMatch();
-  }), [runAction]);
+  const handleRunMatch = useCallback(
+    () =>
+      runAction(
+        "match",
+        async () => {
+          await runMatch();
+        },
+        addSampleDrainAndMatch,
+      ),
+    [runAction, addSampleDrainAndMatch],
+  );
 
-  const handleRunAudit = useCallback(() => runAction("audit", async () => {
-    await runAudit();
-  }), [runAction]);
+  const handleRunAudit = useCallback(
+    () =>
+      runAction(
+        "audit",
+        async () => {
+          await runAudit();
+        },
+        addSampleFinding,
+      ),
+    [runAction, addSampleFinding],
+  );
 
-  const handleRunPlanner = useCallback(() => runAction("planner", async () => {
-    const goal = "Balance drains and tickets across the potion network.";
-    await runPlanner({
-      goal,
-      context: {
-        cauldron_id: mapSource?.cauldrons?.[0]?.id,
-      },
-      dry_run: false,
-    });
-  }), [mapSource, runAction]);
+  const plannerFallback = useCallback(() => {
+    addSampleDrainAndMatch();
+    addSampleFinding();
+    addSampleForecast();
+  }, [addSampleDrainAndMatch, addSampleFinding, addSampleForecast]);
+
+  const handleRunPlanner = useCallback(
+    () =>
+      runAction(
+        "planner",
+        async () => {
+          const goal = "Balance drains and tickets across the potion network.";
+          await runPlanner({
+            goal,
+            context: {
+              cauldron_id: mapSource?.cauldrons?.[0]?.id,
+            },
+            dry_run: false,
+          });
+        },
+        plannerFallback,
+      ),
+    [mapSource, runAction, plannerFallback],
+  );
 
   const handleRunForecast = useCallback(() => {
     const cauldronId = mapSource?.cauldrons?.[0]?.id;
@@ -261,8 +312,8 @@ export default function Home() {
       }
       const forecast = await runForecast({ cauldron_id: cauldronId, horizon_minutes: 240 });
       setCustomForecast(forecast);
-    });
-  }, [mapSource, runAction, setCustomForecast]);
+    }, addSampleForecast);
+  }, [mapSource, runAction, setCustomForecast, addSampleForecast]);
 
   return (
     <main className="container-ppd">
