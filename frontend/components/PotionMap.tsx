@@ -1,5 +1,13 @@
 import { Cauldron, Overview } from "../types";
 
+const LABEL_HEIGHT = 5;
+const LABEL_PADDING = 1;
+const LABEL_GAP = 8;
+const LABEL_TEXT_OFFSET = 0.4;
+const NODE_RADIUS = 14;
+const OUTER_RING = NODE_RADIUS + 6;
+const RIPPLE_RING = NODE_RADIUS + 12;
+
 type Props = { data: Overview };
 
 const pct = (c: Cauldron) => {
@@ -43,6 +51,15 @@ export default function PotionMap({ data }: Props) {
           </div>
         )}
         <svg className="absolute inset-0 w-full h-full">
+          <defs>
+            <filter id="labelGlow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
           {/* links */}
           {links.map((l, idx) => {
             const a = nodes.find((n) => n.id === l.source);
@@ -58,19 +75,49 @@ export default function PotionMap({ data }: Props) {
 
           {/* nodes */}
           {nodes.map((n) => {
-            const x = (n.x ?? 50) + "%";
-            const y = (n.y ?? 50) + "%";
+            const xVal = n.x ?? 50;
+            const yVal = n.y ?? 50;
+            const x = `${xVal}%`;
+            const y = `${yVal}%`;
             const isMarket = n.id.toUpperCase().includes("MKT") || n.name?.toLowerCase().includes("market");
-            const fill = isMarket ? "#E58E33" : "#9E7CFD";
-            const ring = isMarket ? "#F4C471" : "#7AD3F3";
+            const fill = isMarket ? "#f2a365" : "#fbe0b5";
+            const ring = isMarket ? "#F4C471" : "#f0b679";
+            const labelColor = isMarket ? "#F4C471" : "#fbead1";
             const p = pct(n);
+            const labelTop = Math.max(2, yVal - (LABEL_HEIGHT + LABEL_PADDING + LABEL_GAP));
+            const labelCenter = labelTop + LABEL_HEIGHT / 2 + LABEL_TEXT_OFFSET;
+            const labelText = `${n.name ?? n.id}${p != null ? ` • ${p}%` : ""}`;
+            const labelWidth = Math.min(30, Math.max(13, labelText.length * 0.65));
+
             return (
-              <g key={n.id}>
-                <circle cx={x} cy={y} r="18" fill={fill} opacity="0.9" />
-                <circle cx={x} cy={y} r="26" stroke={ring} strokeOpacity="0.35" strokeWidth="2" fill="none" />
-                <text x={x} y={`calc(${y} + 36px)`} textAnchor="middle" fontSize="12" fill="#f8e9d6">
-                  {n.id}{p != null ? `  ${p}%` : ""}
-                </text>
+              <g key={n.id} className="transition duration-200 ease-out">
+                <g>
+                  <rect
+                    x={`calc(${x} - ${labelWidth / 2}%)`}
+                    y={`${labelTop}%`}
+                    width={`${labelWidth}%`}
+                    height={`${LABEL_HEIGHT}%`}
+                    rx="8"
+                    fill="rgba(23,13,33,0.85)"
+                    stroke={`${labelColor}aa`}
+                    strokeWidth="0.4"
+                    filter="url(#labelGlow)"
+                  />
+                  <text
+                    x={x}
+                    y={`${labelCenter}%`}
+                    textAnchor="middle"
+                    fill={labelColor}
+                    fontSize="10"
+                    fontWeight={600}
+                    dominantBaseline="middle"
+                  >
+                    {labelText}
+                  </text>
+                </g>
+                <circle cx={x} cy={y} r={NODE_RADIUS} fill={fill} opacity="0.95" />
+                <circle cx={x} cy={y} r={OUTER_RING} stroke={ring} strokeOpacity="0.65" strokeWidth="2" fill="none" />
+                <circle cx={x} cy={y} r={RIPPLE_RING} stroke={ring} strokeOpacity="0.2" strokeWidth="1" fill="none" />
               </g>
             );
           })}

@@ -50,7 +50,15 @@ export type TimelineItem = {
   volume?: number;
 };
 
-export type TraceStep = { step: number; tool: string; summary: string };
+export type TraceStep = {
+  step: number;
+  tool: string;
+  summary: string;
+  agent?: string;
+  tags?: string[];
+  created_at?: string;
+  action?: string;
+};
 
 export type Overview = {
   date?: string;

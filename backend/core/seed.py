@@ -186,7 +186,7 @@ class EOGSeeder:
         # If still missing, synthesize something stable from obvious fields
         if not code:
             date_part = str(t.get("date") or t.get("scheduled_for") or "")
-            cauldron_part = str(t.get("cauldron_id") or t.get("cauldronId") or "")
+            cauldron_part = str(t.get("cauldrocann_id") or t.get("cauldronId") or "")
             # Final fallback (still deterministic-ish per object identity)
             code = f"GEN_{cauldron_part}_{date_part}_{abs(hash(json.dumps(t, sort_keys=True)))%1_000_000}"
 
