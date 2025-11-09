@@ -25,10 +25,15 @@ export type Finding = {
   reason?: string;
 };
 
+// add/ensure this type exists
 export type Forecast = {
     overflow_eta?: string | null;
+    /** optional timestamp the server says is “now” */
+    now_ts?: string;
+    /** series of [ISO timestamp, volume] points */
     series: [string, number][];
-};  
+  };
+  
 
 export type Cauldron = {
   id: string;

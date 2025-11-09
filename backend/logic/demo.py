@@ -1,173 +1,144 @@
 # backend/logic/demo.py
 from __future__ import annotations
-import random, math
-from typing import Dict, List, Tuple
 from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Tuple
+import random
 
-from .detect import run as detect_run
-from .match import run   as match_run
-from .audit import run   as audit_run
 from .forecast import run as forecast_run
 
-def _seed_for_bucket(bucket_seconds: int = 10) -> int:
-    # Change “randomness” every N seconds so refreshes feel alive but not jumpy
-    now = datetime.now(tz=timezone.utc)
-    return int(now.timestamp()) // bucket_seconds
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).replace(tzinfo=timezone.utc).isoformat().replace("+00:00","Z")
 
-def _make_recent_series(v0: float, slope: float, minutes: int, vmax: float) -> List[Tuple[str, float]]:
+def _recent_history(now: datetime, v0: float, per_min: float, minutes: int, vmax: float) -> List[Tuple[str, float]]:
     """
-    Build last `minutes` of 1-min samples ending at 'now' with small noise.
+    Synthesize ~minutes of noisy history that trends toward v0 using per_min slope.
     """
-    now = datetime.now(tz=timezone.utc)
-    start = now - timedelta(minutes=minutes - 1)
-    v = v0 - slope * (minutes - 1)  # rewind to start
-    out: List[Tuple[str, float]] = []
-    for m in range(minutes):
+    start = now - timedelta(minutes=minutes)
+    v = max(0.0, min(vmax, v0 - per_min * 2.0))  # start a bit lower so history approaches v0
+    hist: List[Tuple[str, float]] = []
+    for m in range(minutes + 1):
         t = start + timedelta(minutes=m)
-        # deterministic small wobble
-        wob = (math.sin((m / 7.0)) + math.cos((m / 11.0))) * 0.15
-        v = max(0.0, min(vmax, v + slope + wob))
-        out.append((t.isoformat().replace("+00:00", "Z"), round(v, 2)))
-    return out
+        # small wander + trend
+        v = v + per_min + random.gauss(0.0, 0.2)
+        v = max(0.0, min(vmax, v))
+        hist.append((_iso(t), round(v, 2)))
+    # ensure last point equals v0 at "now" for a clean stitch
+    hist[-1] = (_iso(now), round(v0, 2))
+    return hist
 
 def run_demo(mode: str = "live", date: str | None = None) -> Dict:
     """
-    Returns the full Overview payload with randomized-but-consistent numbers.
+    Generates a full overview payload with realistic, slightly randomized data.
     """
-    rng = random.Random(_seed_for_bucket(8))  # change every ~8s
+    rng = random.Random()
+    rng.seed(int(datetime.now(timezone.utc).timestamp()) // 8)  # refreshes ~every 8s
 
-    # --- Cauldrons ---
-    cauldrons = [
-        {"id": "C1", "name": "Crystal",  "vmax": 500.0},
-        {"id": "C2", "name": "Moonlight","vmax": 600.0},
-        {"id": "C3", "name": "Starfire", "vmax": 600.0},
+    now = datetime.now(timezone.utc)
+    date_str = "live" if mode == "live" else (date or now.date().isoformat())
+
+    # --- Cauldrons + baseline params ---
+    cauldrons_meta = [
+        {"id": "C1", "name": "Crystal Cauldron", "vmax": 500.0, "r_fill": 0.45},
+        {"id": "C2", "name": "Moonlight Vessel", "vmax": 550.0, "r_fill": 0.35},
+        {"id": "C3", "name": "Starfire Basin",   "vmax": 600.0, "r_fill": 0.70},
     ]
 
-    # layout hint (so your map has positions)
-    layout = {
-        "C1": (22, 68),
-        "C2": (50, 58),
-        "C3": (62, 42),
-        "MKT": (50, 82),
+    # Random-ish current volumes near the middle, but steady
+    for m in cauldrons_meta:
+        mid = m["vmax"] * rng.uniform(0.4, 0.8)
+        m["last_volume"] = round(mid + rng.gauss(0, 4.0), 2)
+
+    # Simple network around market node
+    network = {
+        "links": [
+            {"source": "C1", "target": "MKT"},
+            {"source": "C2", "target": "MKT"},
+            {"source": "C3", "target": "MKT"},
+        ]
     }
 
-    # assign last volumes with small random drift
-    for c in cauldrons:
-        vmax = c["vmax"]
-        base_pct = {"C1": 0.53, "C2": 0.55, "C3": 0.77}[c["id"]]
-        jitter = rng.uniform(-0.02, 0.02)
-        vol = max(0.0, min(vmax, vmax * (base_pct + jitter)))
-        c.update({
-            "last_volume": round(vol, 1),
-            "x": layout[c["id"]][0],
-            "y": layout[c["id"]][1]
-        })
-
-    # --- Drains (random short event on C3 about once every few refreshes) ---
-    now = datetime.now(tz=timezone.utc)
-    drain_events = []
-    if rng.random() < 0.45:
-        start = (now - timedelta(minutes=rng.randint(5, 20))).isoformat().replace("+00:00", "Z")
-        drain_events.append({
-            "id": f"C3-{int(now.timestamp())}",
+    # Optionally synthesize one drain on C3 sometimes
+    drains = []
+    if rng.random() < 0.4:
+        drains.append({
             "cauldron_id": "C3",
-            "t_start": start,
-            "t_end":   (now + timedelta(minutes=rng.randint(5, 15))).isoformat().replace("+00:00", "Z"),
-            "level": "over_report",
-            "flags": ["ok"]
+            "ts": _iso(now + timedelta(minutes=30)),
+            "minutes": 25,
+            "rate": -4.0
         })
 
-    # --- Tickets (one synthetic ticket) ---
-    tickets = [{"id": "T-" + str(int(now.timestamp()) % 1000), "date": now.date().isoformat(), "volume": rng.randint(5, 40)}]
+    # Build history + forecast per cauldron
+    forecasts: Dict[str, Dict] = {}
+    for m in cauldrons_meta:
+        cid = m["id"]
+        vmax = float(m["vmax"])
+        v0   = float(m["last_volume"])
+        r    = float(m["r_fill"])
+        hist = _recent_history(now, v0, r, minutes=90, vmax=vmax)
 
-    # --- Recent series for C3 (used to learn slope) ---
-    c3 = next(c for c in cauldrons if c["id"] == "C3")
-    vmax = float(c3["vmax"])
-    v0   = float(c3["last_volume"])
-    # Estimate natural slope around 0.5–1.2 L/min upward, small jitter
-    slope = rng.uniform(0.4, 1.2)
-    # If there’s a drain in-progress, bias slope down a bit
-    if drain_events:
-        slope -= rng.uniform(0.2, 0.6)
+        scheduled = [d for d in drains if d.get("cauldron_id") == cid]
+        forecasts[cid] = forecast_run({
+            "cauldron_id": cid,
+            "horizon_min": 240,
+            "current": {
+                "ts": _iso(now),
+                "volume": v0,
+                "vmax": vmax,
+                "r_fill": r
+            },
+            "scheduled_drains": scheduled,
+            "history": hist[-90:],
+            "noise_sigma": 0.25,
+        })
 
-    recent = _make_recent_series(v0=v0, slope=slope, minutes=90, vmax=vmax)
-
-    # --- Detect / Match / Audit pipeline using your existing logic ---
-    series_payload = {
-        "date": now.date().isoformat(),
-        "series": [{"cauldron_id": "C3", "points": recent, "r_fill": slope}],
-    }
-    det = detect_run(series_payload)
-
-    mat = match_run({
-        "date": now.date().isoformat(),
-        "tickets": [{"id": t["id"], "volume": float(t["volume"]), "cauldron_id": None} for t in tickets],
-        "drain_events": det["drain_events"],
-    })
-
-    aud = audit_run({
-        "date": now.date().isoformat(),
-        **mat,
-        "drain_events": det["drain_events"],
-    })
-
-    # --- Forecast (more accurate; learns slope from `recent`) ---
-    fc = forecast_run({
-        "cauldron_id": "C3",
-        "horizon_min": 300,
-        "current": {
-            "ts": now.isoformat().replace("+00:00", "Z"),
-            "volume": v0,
-            "vmax": vmax
-        },
-        "recent": recent,
-        "scheduled_drains": [
-            # Convert your detected drain into a scheduled negative rate if active soon
-            # Here we just project a small drain in ~30–60 minutes occasionally
-            *([{
-                "ts": (now + timedelta(minutes=rng.randint(30, 60))).isoformat().replace("+00:00", "Z"),
-                "minutes": rng.randint(8, 15),
-                "rate": -1.8
-            }] if rng.random() < 0.35 else [])
-        ],
-    })
-
-    # --- Findings (simple single alert based on audit) ---
+    # Very lightweight “findings” demo
     findings = []
-    if aud.get("findings"):
+    if forecasts["C3"]["overflow_eta"]:
         findings.append({
             "type": "over_report",
             "reason": "|Δ| > tol",
-            "status": "suspicious",
-            "cauldron": "C3"
+            "status": "suspicious"
         })
 
-    # --- Trace (toy plan steps for the right rail) ---
+    # Minimal drain/match/trace demo rows
+    drain_events = []
+    if drains:
+        d = drains[0]
+        drain_events.append({
+            "id": f"{d['cauldron_id']}-{d['ts']}",
+            "cauldron_id": d["cauldron_id"],
+            "t_start": d["ts"],
+            "t_end": _iso(datetime.fromisoformat(d["ts"].replace("Z","+00:00")) + timedelta(minutes=d["minutes"])),
+            "level": 0,
+        })
+
+    matches = [{
+        "id": "match_1",
+        "ticket_id": "T150",
+        "drain_event_id": drain_events[0]["id"] if drain_events else None,
+        "diff_volume": rng.randint(5, 20)
+    }]
+
     trace = [
-        {"name": "detect_drains",     "summary": "1 event on C3"},
-        {"name": "match_tickets",     "summary": "1 match, Δ≈97"},
-        {"name": "audit_discrepancies","summary": "over_report flagged"},
-        {"name": "forecast_levels",   "summary": "C3 overflow " + (fc["overflow_eta"].split("T")[1][:5] if fc.get("overflow_eta") else "—")},
+        {"op": "detect_drains",       "summary": "1 event on C3"},
+        {"op": "match_tickets",       "summary": "1 match, Δ≈97"},
+        {"op": "audit_discrepancies", "summary": "over_report flagged"},
+        {"op": "forecast_levels",     "summary": "C3 overflow predicted"},
     ]
 
-    # --- Format overview ---
+    # Compose overview
     overview = {
-        "date": "live",
+        "date": date_str,
         "cauldrons": [
-            {**c} for c in cauldrons
-        ] + [{"id": "MKT", "name": "Market", "x": layout["MKT"][0], "y": layout["MKT"][1]}],
-        "network": {
-            "links": [
-                {"source": "C1", "target": "MKT"},
-                {"source": "C2", "target": "MKT"},
-                {"source": "C3", "target": "MKT"},
-            ]
-        },
-        "drain_events": det.get("drain_events", []),
-        "matches": mat.get("matches", []),
+            {"id": m["id"], "vmax": m["vmax"], "last_volume": m["last_volume"],
+             "x": 25 + i * 25, "y": 60}
+            for i, m in enumerate(cauldrons_meta)
+        ] + [{"id": "MKT", "name": "Market", "x": 50, "y": 85}],
+        "network": network,
+        "drain_events": drain_events,
+        "matches": matches,
         "findings": findings,
         "trace": trace,
-        # return a mapping so UI can pick C3 or others if you add later
-        "forecast": {"C3": fc}
+        "forecast": forecasts
     }
     return overview

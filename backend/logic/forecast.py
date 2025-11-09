@@ -2,88 +2,104 @@
 from __future__ import annotations
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime, timedelta, timezone
+import math
+import random
 
-def _ols_slope(points: List[Tuple[float, float]]) -> float:
+def _iso(dt: datetime) -> str:
+    return dt.astimezone(timezone.utc).replace(tzinfo=timezone.utc).isoformat().replace("+00:00","Z")
+
+def _learn_slope(history: List[Tuple[str, float]], fallback_per_min: float) -> float:
     """
-    Simple least-squares slope (L/min) from (minute_index, volume).
+    Simple linear regression slope (units of volume per minute).
+    If not enough history, fall back to r_fill.
     """
-    n = len(points)
-    if n < 2:
-        return 0.0
-    sx = sum(p[0] for p in points)
-    sy = sum(p[1] for p in points)
-    sxx = sum(p[0] * p[0] for p in points)
-    sxy = sum(p[0] * p[1] for p in points)
-    denom = n * sxx - sx * sx
-    if abs(denom) < 1e-9:
-        return 0.0
-    return (n * sxy - sx * sy) / denom  # ΔV / minute
+    if not history or len(history) < 3:
+        return fallback_per_min
+    # normalize x to minutes from start to reduce floating error
+    t0 = datetime.fromisoformat(history[0][0].replace("Z","+00:00"))
+    xs, ys = [], []
+    for ts, v in history:
+        t = datetime.fromisoformat(ts.replace("Z","+00:00"))
+        xs.append((t - t0).total_seconds() / 60.0)
+        ys.append(float(v))
+    n = float(len(xs))
+    mx = sum(xs) / n
+    my = sum(ys) / n
+    num = sum((x - mx) * (y - my) for x, y in zip(xs, ys))
+    den = sum((x - mx) ** 2 for x in xs) or 1.0
+    slope = num / den  # volume per minute
+    # clamp to something sane so noise can't explode
+    return max(-8.0, min(8.0, slope)) if math.isfinite(slope) else fallback_per_min
 
 def run(input_json: Dict) -> Dict:
     """
-    input: {
-      "cauldron_id": "C3",
-      "horizon_min": 240,
-      "current": {"ts":"...Z","volume":480.0,"vmax":600.0},
-      "recent":   [["...Z", 460.0], ... ]   # optional recent observed points
-      "scheduled_drains": [ {"ts":"...Z","minutes":15,"rate":-2.0}, ... ]
-    }
+    Input:
+      {
+        "cauldron_id": "C3",
+        "horizon_min": 240,
+        "current": { "ts":"...Z", "volume": 480.0, "vmax": 600.0, "r_fill": 0.9 },
+        "scheduled_drains": [ { "ts":"...Z", "minutes": 20, "rate": -3.0 } ],
+        "history": [ ["...Z", 470.0], ... ],     # optional, improves accuracy
+        "noise_sigma": 0.25                       # optional, default ~0.25
+      }
+    Returns:
+      {
+        "now_ts": "...Z",
+        "overflow_eta": "...Z" | null,
+        "series": [ ["...Z", 463.0], ... ]        # minute resolution, includes history+future
+      }
     """
     H = int(input_json.get("horizon_min", 240))
     cur = input_json["current"]
     vmax = float(cur["vmax"])
     v0   = float(cur["volume"])
-    now  = datetime.fromisoformat(cur["ts"].replace("Z","+00:00"))
-
-    # Estimate natural fill slope from recent history if available
-    recent = input_json.get("recent") or []
-    slope = 0.0  # L/min
-    if len(recent) >= 4:
-        # take the last ~30–60 mins if available
-        last = recent[-60:] if len(recent) > 60 else recent
-        # index points by minute offset
-        t0 = datetime.fromisoformat(last[0][0].replace("Z","+00:00"))
-        pts = []
-        for ts, vol in last:
-            dt = datetime.fromisoformat(ts.replace("Z","+00:00"))
-            minutes = (dt - t0).total_seconds() / 60.0
-            pts.append((minutes, float(vol)))
-        slope = _ols_slope(pts)
-        # clamp the slope to a sane range
-        slope = max(-3.0, min(3.0, slope))
-
+    r    = float(cur.get("r_fill", 0.0))  # baseline per-minute change
+    now  = datetime.fromisoformat(cur["ts"].replace("Z","+00:00")).astimezone(timezone.utc)
     drains = input_json.get("scheduled_drains", [])
+    history = input_json.get("history", [])
+    sigma = float(input_json.get("noise_sigma", 0.25))
+
+    # If history exists, learn a better slope; blend with r for stability.
+    learned = _learn_slope(history, r)
+    slope_per_min = 0.6 * learned + 0.4 * r
 
     series: List[Tuple[str, float]] = []
+
+    # Stitch: include recent history (as-is), then simulate from "now" forward.
+    if history:
+        # Ensure history is ordered and trimmed to last 180 min to keep payload small.
+        hist_sorted = sorted(history, key=lambda p: p[0])[-180:]
+        series.extend((ts, float(v)) for ts, v in hist_sorted)
+
+    # Ensure the last value equals current (align UI & server)
+    last_val = v0
+    series.append((_iso(now), round(last_val, 2)))
+
     overflow: Optional[str] = None
-    v = v0
 
-    for m in range(H + 1):
+    for m in range(1, H + 1):
         t = now + timedelta(minutes=m)
+        net = slope_per_min
 
-        # base drift from learned slope
-        dv = slope
-
-        # apply scheduled drains (negative rates) when active
+        # Apply any scheduled drains (negative rate during window)
         for d in drains:
-            dt = datetime.fromisoformat(d["ts"].replace("Z","+00:00"))
+            dt = datetime.fromisoformat(d["ts"].replace("Z","+00:00")).astimezone(timezone.utc)
             dur = int(d.get("minutes", 0))
             if 0 <= (t - dt).total_seconds() / 60.0 < dur:
-                dv += float(d.get("rate", 0.0))
+                net += float(d.get("rate", 0.0))
 
-        # add tiny random process noise to feel organic but stable
-        # (pseudo noise that’s deterministic per minute to avoid jumpiness)
-        noise = (((hash((int(t.timestamp()) // 60, "fx")) % 100) - 50) / 50.0) * 0.05  # ~±0.05 L/min
-        dv += noise
+        # add small random noise to feel organic
+        last_val = last_val + net + random.gauss(0.0, sigma)
+        last_val = max(0.0, min(vmax, last_val))
 
-        v = max(0.0, min(vmax, v + dv))
-        iso = t.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
-        series.append([iso, round(v, 2)])
-        if overflow is None and abs(v - vmax) < 1e-6:
-            overflow = iso
+        ts = _iso(t)
+        series.append((ts, round(last_val, 2)))
+
+        if overflow is None and abs(last_val - vmax) < 1e-6:
+            overflow = ts
 
     return {
-        "now_ts": now.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+        "now_ts": _iso(now),
         "overflow_eta": overflow,
         "series": series
     }
