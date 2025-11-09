@@ -1,0 +1,31 @@
+{
+    "cauldrons": [
+      { "id": "C3", "name": "Flicker", "maxVolume": 600.0, "fillRate": 0.9 }
+    ],
+    "levels": [
+      { "cauldronId": "C3", "timestamp": "2025-11-07T09:58:00Z", "volume": 530.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T09:59:00Z", "volume": 528.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:00:00Z", "volume": 525.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:01:00Z", "volume": 520.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:02:00Z", "volume": 514.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:03:00Z", "volume": 507.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:04:00Z", "volume": 500.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:05:00Z", "volume": 494.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:06:00Z", "volume": 492.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:07:00Z", "volume": 493.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:08:00Z", "volume": 494.0 },
+  
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:20:00Z", "volume": 520.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:21:00Z", "volume": 512.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:22:00Z", "volume": 505.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:23:00Z", "volume": 498.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:24:00Z", "volume": 492.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:25:00Z", "volume": 490.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:26:00Z", "volume": 491.0 },
+      { "cauldronId": "C3", "timestamp": "2025-11-07T10:27:00Z", "volume": 492.0 }
+    ],
+    "tickets": [
+      { "id": "T010", "date": "2025-11-07", "volume": 10.0, "cauldronId": null }
+    ]
+  }
+  
