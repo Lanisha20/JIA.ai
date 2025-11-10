@@ -33,6 +33,8 @@ export default function PotionMap({ data }: Props) {
     : data.cauldrons || [];
   const links = data.network?.links ?? [];
 
+  const derivedLinks = links;
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
@@ -61,15 +63,18 @@ export default function PotionMap({ data }: Props) {
             </filter>
           </defs>
           {/* links */}
-          {links.map((l, idx) => {
+          {derivedLinks.map((l, idx) => {
             const a = nodes.find((n) => n.id === l.source);
             const b = nodes.find((n) => n.id === l.target);
             if (!a || !b) return null;
             const ax = (a.x ?? 50) + "%", ay = (a.y ?? 50) + "%";
             const bx = (b.x ?? 50) + "%", by = (b.y ?? 50) + "%";
+            const dashed = l.style === "dashed";
             return (
               <line key={idx} x1={ax} y1={ay} x2={bx} y2={by}
-                    stroke="#F4C47188" strokeWidth="2" strokeDasharray="5 6" />
+                    stroke={dashed ? "#9E7CFD99" : "#F4C47188"}
+                    strokeWidth={dashed ? 1.5 : 2}
+                    strokeDasharray={dashed ? "6 6" : undefined} />
             );
           })}
 

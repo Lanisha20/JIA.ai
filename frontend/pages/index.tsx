@@ -33,6 +33,7 @@ export default function Home() {
   const [data, setData] = useState<Overview | null>(null);
   const [customNodes, setCustomNodes] = useState<Cauldron[]>([]);
   const [customLinks, setCustomLinks] = useState<{ source: string; target: string }[]>([]);
+  const [customNodeOrder, setCustomNodeOrder] = useState<string[]>([]);
   const [demoDrains, setDemoDrains] = useState<DrainEvent[]>([]);
   const [demoMatches, setDemoMatches] = useState<MatchRow[]>([]);
   const [demoFindings, setDemoFindings] = useState<Finding[]>([]);
@@ -101,9 +102,33 @@ export default function Home() {
     customNodes.forEach((node) => nodeMap.set(node.id, { ...node }));
     const mergedNetworkNodes = Array.from(nodeMap.values());
 
-    const linkMap = new Map<string, { source: string; target: string }>();
-    (data.network?.links ?? []).forEach((link) => linkMap.set(`${link.source}->${link.target}`, link));
-    customLinks.forEach((link) => linkMap.set(`${link.source}->${link.target}`, link));
+    const linkMap = new Map<string, NetworkLink>();
+    (data.network?.links ?? []).forEach((link) =>
+      linkMap.set(`${link.source}->${link.target}`, {
+        source: link.source,
+        target: link.target,
+        style: link.style ?? "solid",
+      }),
+    );
+    customLinks.forEach((link) => {
+      const key = `${link.source}->${link.target}`;
+      if (!linkMap.has(key)) {
+        linkMap.set(key, { source: link.source, target: link.target, style: "solid" });
+      }
+    });
+
+    const networkNodeIds = new Set((mergedNetworkNodes ?? []).map((node) => node.id));
+    const orderedLinks: NetworkLink[] = [];
+    const filteredOrder = customNodeOrder.filter((id) => networkNodeIds.has(id));
+    for (let i = 0; i < filteredOrder.length - 1; i += 1) {
+      const source = filteredOrder[i];
+      const target = filteredOrder[i + 1];
+      const key = `${source}->${target}`;
+      if (!linkMap.has(key)) {
+        orderedLinks.push({ source, target, style: "dashed" });
+      }
+    }
+    orderedLinks.forEach((link) => linkMap.set(`${link.source}->${link.target}`, link));
     const mergedLinks = Array.from(linkMap.values());
 
     return {
@@ -153,6 +178,10 @@ export default function Home() {
     setCustomNodes((prev) => {
       const filtered = prev.filter((node) => node.id !== id);
       return [...filtered, nextNode];
+    });
+    setCustomNodeOrder((prev) => {
+      const filtered = prev.filter((nodeId) => nodeId !== id);
+      return [...filtered, id];
     });
     if (draft.linkTarget) {
       setCustomLinks((prev) => {
@@ -334,6 +363,13 @@ export default function Home() {
           <LogsTable matches={matches} drains={drains} />
           <AlertsPanel findings={findings} />
           <ForecastCard title="Potion Level Forecast" f={primaryForecast} />
+          <DemoLab
+            onAddDrain={handleAddDemoDrain}
+            onAddAlert={handleAddDemoAlert}
+            onAddForecast={handleAddDemoForecast}
+            onClear={handleClearDemo}
+            stats={{ drains: demoDrains.length, alerts: demoFindings.length, forecastActive: Boolean(customForecast) }}
+          />
         </div>
 
         {/* RIGHT SIDE — Actions + Trace */}
@@ -346,13 +382,6 @@ export default function Home() {
             onRunAudit={handleRunAudit}
             onRunForecast={handleRunForecast}
             status={actionStatus}
-          />
-          <DemoLab
-            onAddDrain={handleAddDemoDrain}
-            onAddAlert={handleAddDemoAlert}
-            onAddForecast={handleAddDemoForecast}
-            onClear={handleClearDemo}
-            stats={{ drains: demoDrains.length, alerts: demoFindings.length, forecastActive: Boolean(customForecast) }}
           />
           {data && <AgentTrace trace={trace} />}
         </div>

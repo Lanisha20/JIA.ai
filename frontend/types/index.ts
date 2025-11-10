@@ -65,10 +65,16 @@ export type TraceStep = {
   action?: string;
 };
 
+export type NetworkLink = {
+  source: string;
+  target: string;
+  style?: "solid" | "dashed";
+};
+
 export type Overview = {
   date?: string;
   cauldrons: Cauldron[];
-  network?: { nodes?: Cauldron[]; links: { source: string; target: string }[] };
+  network?: { nodes?: Cauldron[]; links: NetworkLink[] };
   drain_events: DrainEvent[];
   matches: MatchRow[];
   findings: Finding[];

@@ -1,4 +1,13 @@
-import { Cauldron, DrainEvent, Finding, Forecast, MatchRow, Overview, TraceStep } from "../types";
+import {
+  Cauldron,
+  DrainEvent,
+  Finding,
+  Forecast,
+  MatchRow,
+  NetworkLink,
+  Overview,
+  TraceStep,
+} from "../types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
@@ -78,11 +87,16 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
     : forecast;
 
   const network = state.network || { nodes: [], links: [] };
+  const normalizedLinks: NetworkLink[] = (network.links || []).map((link: any) => ({
+    source: link.source,
+    target: link.target,
+    style: link.style as NetworkLink["style"],
+  }));
 
   return {
     date: new Date().toISOString(),
     cauldrons,
-    network,
+    network: { nodes: network.nodes, links: normalizedLinks },
     drain_events: drains,
     matches,
     findings,
