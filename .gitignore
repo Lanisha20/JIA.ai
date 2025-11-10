@@ -1,0 +1,20 @@
+# Environment + secrets
+.env
+.env.local
+.env.production
+.env.development
+
+# Python
+__pycache__/
+.venv/
+*.pyc
+
+# Node / Next.js
+node_modules/
+frontend/.next/
+frontend/node_modules/
+
+# Misc
+.DS_Store
+*.log
+backend/data/app.db
