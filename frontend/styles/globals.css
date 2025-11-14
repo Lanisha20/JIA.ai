@@ -3,30 +3,41 @@
 @tailwind utilities;
 
 /* 🌌 enchanted forest background only */
-html, body, #__next { height: 100%; margin: 0; padding: 0; }
+html, body, #__next {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
 
 :root {
   --panel: #241b36;
   --gold: #f4c471;
+
+  /* neon palette */
+  --glow-1: #a78bfa;  /* lavender */
+  --glow-2: #7c3aed;  /* deep violet */
+  --glow-3: #fde68a;  /* soft gold */
 }
 
 body {
   @apply bg-cover bg-center bg-no-repeat;
   background-image: url('/images/bg.png');
   background-attachment: fixed;
-  background-color: #1a1024; /* fallback deep purple tone */
+  background-color: #1a1024; /* fallback deep purple */
   color: #f7f2ff;
   font-family: Inter, system-ui, sans-serif;
 }
 
 .btn:hover {
-    box-shadow: 0 0 10px rgba(244, 196, 113, 0.4);
-    transform: translateY(-1px);
-    transition: all 0.2s ease;
-  }
-  
+  box-shadow: 0 0 10px rgba(244, 196, 113, 0.4);
+  transform: translateY(-1px);
+  transition: all 0.2s ease;
+}
 
-/* ---------- Cards & badges ---------- */
+
+/* ----------------------------------------------- */
+/*                   Cards & badges                */
+/* ----------------------------------------------- */
 .card {
   @apply rounded-2xl bg-[rgba(36,27,54,0.88)]
          border border-[rgba(244,196,113,0.18)]
@@ -37,51 +48,86 @@ body {
 .badge-warn   { @apply bg-[rgba(229,142,51,0.14)] text-[#E58E33]; }
 .badge-verify { @apply bg-[rgba(244,196,113,0.14)] text-[var(--gold)]; }
 
-/* ---------- Headings ---------- */
+
+/* ----------------------------------------------- */
+/*                 Typography System               */
+/* ----------------------------------------------- */
+
+/* Main big title */
 .h-title {
   font-family: "Cinzel", serif;
-  letter-spacing: .5px;
   color: var(--gold);
+  font-weight: 800;
+  font-size: 3.8rem;
+  letter-spacing: 1.1px;
+  text-shadow:
+    0 0 10px rgba(244,196,113,0.45),
+    0 0 22px rgba(244,196,113,0.20),
+    0 0 40px rgba(244,196,113,0.12);
 }
 
-/* ---------- Layout helpers ---------- */
+/* Section titles: e.g. “Potion Network Map”, “Agent Actions” */
+.h-subtitle {
+  font-family: "Cinzel", serif;
+  font-weight: 700;
+  font-size: 1.75rem;
+  letter-spacing: 0.6px;
+  color: var(--gold);
+  text-shadow:
+    0 0 6px rgba(244,196,113,0.35),
+    0 0 12px rgba(244,196,113,0.20);
+}
+
+/* Mini labels: e.g. small headers or status bars */
+.h-section {
+  font-family: "Cinzel", serif;
+  font-weight: 600;
+  font-size: 1.35rem;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+}
+
+
+/* ----------------------------------------------- */
+/*                    Layout helpers               */
+/* ----------------------------------------------- */
 .container-ppd { @apply max-w-7xl mx-auto px-6; }
 .grid-ppd      { @apply grid grid-cols-1 lg:grid-cols-3 gap-6; }
 
 
-/* ===== Neon palette ===== */
-:root{
-    --glow-1: #a78bfa;  /* lavender */
-    --glow-2: #7c3aed;  /* deep violet */
-    --glow-3: #fde68a;  /* soft gold */
-  }
-  
-  /* ===== Glowing text ===== */
-  .glow-text{
-    color: #f7f2ff;
+/* ----------------------------------------------- */
+/*                   Glowing text                  */
+/* ----------------------------------------------- */
+.glow-text {
+  color: #f7f2ff;
+  text-shadow:
+    0 0 .5rem var(--glow-1),
+    0 0 1.1rem var(--glow-1),
+    0 0 1.8rem var(--glow-2),
+    0 0 2.6rem var(--glow-2);
+  filter: saturate(115%);
+}
+
+.glow-pulse {
+  animation: glowPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+  0%,100% {
     text-shadow:
-      0 0 .5rem var(--glow-1),
-      0 0 1.1rem var(--glow-1),
-      0 0 1.8rem var(--glow-2),
-      0 0 2.6rem var(--glow-2);
-    filter: saturate(115%);
-  }
-  
-  .glow-pulse{
-    animation: glowPulse 2.4s ease-in-out infinite;
-  }
-  @keyframes glowPulse{
-    0%,100%{ text-shadow:
       0 0 .45rem var(--glow-1),
       0 0 1rem var(--glow-1),
       0 0 1.6rem var(--glow-2),
-      0 0 2.4rem var(--glow-2); }
-    50%{ text-shadow:
+      0 0 2.4rem var(--glow-2);
+  }
+  50% {
+    text-shadow:
       0 0 .8rem var(--glow-1),
       0 0 1.6rem var(--glow-1),
       0 0 2.4rem var(--glow-2),
-      0 0 3.4rem var(--glow-2); }
+      0 0 3.4rem var(--glow-2);
   }
+}
   
   /* ===== Glow cursor ===== */
   body.cursor-neon { cursor: none; }   /* opt-in so you can toggle */

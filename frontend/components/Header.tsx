@@ -14,9 +14,9 @@ export default function Header() {
 
   return (
     <header className="pt-8 pb-4">
-      <h1 className="h-title text-4xl md:text-5xl text-center">Potion Flow Dashboard</h1>
+      <h1 className="h-title text-4xl md:text-5xl text-center">Alchemetrics Dashboard</h1>
       <p className="text-center text-white/70 mt-2" suppressHydrationWarning>
-        Live · Alchemetric Agentic Audit · <span>stamp: {stamp}</span>
+        Live · Alchemetrics Agentic Audit · <span>stamp: {stamp}</span>
       </p>
     </header>
   );
