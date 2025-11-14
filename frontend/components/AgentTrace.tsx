@@ -134,11 +134,15 @@ function computeSizeMetrics(step: TraceStep): { ratio: number; label: string } {
 }
 
 export default function AgentTrace({ trace = [] as TraceStep[] }) {
+  if (!trace.length) {
+    return null;
+  }
+  const displayTrace = trace;
   const [page, setPage] = useState(0);
-  const totalPages = Math.max(1, Math.ceil((trace?.length ?? 0) / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil((displayTrace?.length ?? 0) / PAGE_SIZE));
   const pageIndex = Math.min(page, totalPages - 1);
   const start = pageIndex * PAGE_SIZE;
-  const stepsToShow = trace.slice(start, start + PAGE_SIZE);
+  const stepsToShow = displayTrace.slice(start, start + PAGE_SIZE);
 
   const entries = useMemo<DecoratedTrace[]>(
     () =>
@@ -183,7 +187,7 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
             ← Prev
           </button>
           <span className="text-xs text-white/60">
-            {Math.min(trace.length, start + 1)}-{Math.min(trace.length, start + entries.length)} / {trace.length || 0}
+            {Math.min(displayTrace.length, start + 1)}-{Math.min(displayTrace.length, start + entries.length)} / {displayTrace.length || 0}
           </span>
           <button
             className={`badge ${!canNext ? "opacity-40 cursor-not-allowed" : ""}`}
@@ -195,7 +199,7 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
         </div>
       </div>
 
-      {trace.length === 0 && <div className="text-sm text-white/70">No planner activity yet.</div>}
+      {displayTrace.length === 0 && <div className="text-sm text-white/70">No planner activity yet.</div>}
 
       <ol className="space-y-2.5">
         {entries.map((entry) => (

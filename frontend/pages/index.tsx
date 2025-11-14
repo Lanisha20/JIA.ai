@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { getOverview, runAudit, runDetect, runForecast, runMatch, runPlanner } from "../lib/api";
-import { Cauldron, DrainEvent, Finding, Forecast, MatchRow, Overview } from "../types";
+import { Cauldron, DrainEvent, Finding, Forecast, MatchRow, NetworkLink, Overview } from "../types";
 
 import Header from "../components/Header";
 import PotionMap from "../components/PotionMap";
@@ -9,6 +9,7 @@ import AlertsPanel from "../components/AlertsPanel";
 import LogsTable from "../components/LogsTable";
 import ForecastCard from "../components/ForecastCard";
 import AgentTrace from "../components/AgentTrace";
+import AgentFocus from "../components/AgentFocus";
 import ActionsPanel from "../components/ActionsPanel";
 import NetworkComposer from "../components/NetworkComposer";
 import DemoLab from "../components/DemoLab";
@@ -37,7 +38,7 @@ export default function Home() {
   const [demoDrains, setDemoDrains] = useState<DrainEvent[]>([]);
   const [demoMatches, setDemoMatches] = useState<MatchRow[]>([]);
   const [demoFindings, setDemoFindings] = useState<Finding[]>([]);
-  const [customForecast, setCustomForecast] = useState<Forecast | null>(null);
+  const [customForecasts, setCustomForecasts] = useState<Record<string, Forecast>>({});
   const [actionStatus, setActionStatus] = useState<Record<ActionKey, ActionState>>({
     detect: "idle",
     match: "idle",
@@ -45,6 +46,7 @@ export default function Home() {
     audit: "idle",
     forecast: "idle",
   });
+  const demoIdRef = useRef(0);
 
   const fetchOverview = useCallback(async () => {
     try {
@@ -64,7 +66,7 @@ export default function Home() {
   const runAction = useCallback(
     async (key: ActionKey, task: () => Promise<void>, fallback?: () => void) => {
       setActionStatus((prev) => ({ ...prev, [key]: "running" }));
-      try {
+    try {
         await task();
         setActionStatus((prev) => ({ ...prev, [key]: "success" }));
         await fetchOverview();
@@ -90,20 +92,85 @@ export default function Home() {
     [fetchOverview],
   );
 
+  const syntheticCauldrons = useMemo(() => {
+    const drainSources = [...(data?.drain_events ?? []), ...demoDrains];
+    if (drainSources.length === 0) return [];
+    const ids = Array.from(new Set(drainSources.map((d) => d.cauldron_id).filter(Boolean)));
+    const dropTotals = drainSources.reduce<Record<string, number>>((acc, drain) => {
+      if (!drain.cauldron_id) return acc;
+      const drop = typeof drain.level_drop === "number" ? drain.level_drop : drain.true_volume ?? 0;
+      acc[drain.cauldron_id] = (acc[drain.cauldron_id] ?? 0) + (drop || 0);
+      return acc;
+    }, {});
+    return ids.map((id, idx) => {
+      const basePercent = 72;
+      const drop = Math.min(60, (dropTotals[id] ?? 0) / 10);
+      const fillPercent = Math.max(12, Math.round(basePercent - drop));
+      const vmax = 500;
+      const lastVolume = Math.round((fillPercent / 100) * vmax);
+      const nodeCount = Math.max(ids.length, 1);
+      const angle = (idx / nodeCount) * Math.PI * 1.6 + 0.5;
+      const ringStep = Math.floor(idx / Math.max(1, Math.floor(nodeCount / 3) || 1));
+      const radius = 18 + ringStep * 10;
+      const x = Math.min(92, Math.max(8, Math.round(50 + Math.cos(angle) * radius)));
+      const y = Math.min(90, Math.max(10, Math.round(55 + Math.sin(angle) * radius)));
+      return {
+        id,
+        name: id,
+        x,
+        y,
+        vmax,
+        last_volume: lastVolume,
+        fill_percent: fillPercent,
+        fill_rate: null,
+      } as Cauldron;
+    });
+  }, [data, demoDrains]);
+
   const mapData = useMemo(() => {
-    if (!data) return null;
+    const hasLocalNodes = Boolean(data) || customNodes.length > 0 || syntheticCauldrons.length > 0;
+    if (!hasLocalNodes) return null;
+
+    const base: Overview =
+      data ??
+      ({
+        cauldrons: [],
+        network: { nodes: [], links: [] },
+        drain_events: [],
+        matches: [],
+        findings: [],
+        forecast: null,
+        trace: [],
+      } as Overview);
+
     const cauldronMap = new Map<string, Cauldron>();
-    data.cauldrons.forEach((c) => cauldronMap.set(c.id, { ...c }));
-    customNodes.forEach((node) => cauldronMap.set(node.id, { ...cauldronMap.get(node.id), ...node }));
+    (base.cauldrons ?? []).forEach((c) => cauldronMap.set(c.id, { ...c }));
+    customNodes.forEach((node) => {
+      const existing = cauldronMap.get(node.id);
+      cauldronMap.set(node.id, { ...(existing ?? {}), ...node });
+    });
+    syntheticCauldrons.forEach((node) => {
+      if (!cauldronMap.has(node.id)) {
+        cauldronMap.set(node.id, { ...node });
+      }
+    });
     const mergedCauldrons = Array.from(cauldronMap.values());
 
     const nodeMap = new Map<string, Cauldron>();
-    (data.network?.nodes ?? []).forEach((node) => nodeMap.set(node.id, { ...node }));
-    customNodes.forEach((node) => nodeMap.set(node.id, { ...node }));
+    (base.network?.nodes ?? []).forEach((node) => nodeMap.set(node.id, { ...node }));
+    customNodes.forEach((node) => {
+      const existing = nodeMap.get(node.id);
+      nodeMap.set(node.id, { ...(existing ?? {}), ...node });
+    });
+    syntheticCauldrons.forEach((node) => {
+      if (!nodeMap.has(node.id)) {
+        nodeMap.set(node.id, { ...node });
+      }
+    });
     const mergedNetworkNodes = Array.from(nodeMap.values());
 
     const linkMap = new Map<string, NetworkLink>();
-    (data.network?.links ?? []).forEach((link) =>
+    (base.network?.links ?? []).forEach((link) =>
       linkMap.set(`${link.source}->${link.target}`, {
         source: link.source,
         target: link.target,
@@ -132,14 +199,14 @@ export default function Home() {
     const mergedLinks = Array.from(linkMap.values());
 
     return {
-      ...data,
+      ...base,
       cauldrons: mergedCauldrons,
       network: {
         nodes: mergedNetworkNodes,
         links: mergedLinks,
       },
     };
-  }, [data, customNodes, customLinks]);
+  }, [data, customNodes, customLinks, customNodeOrder, syntheticCauldrons]);
 
   const mapSource = mapData ?? data;
 
@@ -148,15 +215,19 @@ export default function Home() {
   const matches = [...(data?.matches ?? []), ...demoMatches];
   const trace = data?.trace ?? [];
 
-  const baseForecast = (() => {
-    if (!data?.forecast) return undefined;
-    const f: any = data.forecast;
-    if (f.series) return f;
-    if (typeof f === "object") return Object.values(f as Record<string, any>)[0];
-    return undefined;
-  })();
-
-  const primaryForecast = customForecast ?? baseForecast;
+  const forecastMap = (data?.forecast ?? {}) as Record<string, Forecast>;
+  const plannerFocusedCauldron =
+    trace.find((step) => step.context?.cauldron_id)?.context?.cauldron_id ??
+    trace.find((step) => step.input_payload?.cauldron_id)?.input_payload?.cauldron_id ??
+    trace.find((step) => step.output_payload?.cauldron_id)?.output_payload?.cauldron_id ??
+    mapSource?.cauldrons?.[0]?.id ??
+    null;
+  const fallbackForecast = Object.values(customForecasts)[0] ?? Object.values(forecastMap)[0];
+  const primaryForecast =
+    (plannerFocusedCauldron &&
+      (customForecasts[plannerFocusedCauldron] ?? forecastMap[plannerFocusedCauldron])) ||
+    fallbackForecast ||
+    undefined;
 
   const handleAddNode = (draft: DraftNodePayload) => {
     const id = draft.id.trim();
@@ -193,9 +264,19 @@ export default function Home() {
   };
 
   const pickCauldronId = useCallback(() => {
-    const sourceList = mapSource?.cauldrons ?? customNodes;
-    return sourceList[0]?.id ?? `C-demo-${Math.floor(Math.random() * 900 + 100)}`;
-  }, [mapSource, customNodes]);
+    const backendCauldrons = data?.cauldrons ?? [];
+    if (backendCauldrons.length > 0) {
+      const idx = Math.floor(Math.random() * backendCauldrons.length);
+      return backendCauldrons[idx].id;
+    }
+    if (customNodes.length > 0) {
+      demoIdRef.current += 1;
+      const idx = demoIdRef.current % customNodes.length;
+      return customNodes[idx].id;
+    }
+    demoIdRef.current += 1;
+    return `C-demo-${demoIdRef.current}`;
+  }, [data, customNodes]);
 
   const addSampleDrainAndMatch = useCallback(() => {
     const cauldronId = pickCauldronId();
@@ -237,16 +318,21 @@ export default function Home() {
   }, [pickCauldronId]);
 
   const addSampleForecast = useCallback(() => {
+    const cauldronId = pickCauldronId();
     const start = Date.now();
     const series: [string, number][] = Array.from({ length: 6 }).map((_, idx) => [
       new Date(start + idx * 15 * 60 * 1000).toISOString(),
       Math.round(380 + idx * 35 + Math.random() * 25),
     ]);
-    setCustomForecast({
+    const forecast: Forecast = {
       overflow_eta: new Date(start + 90 * 60 * 1000).toISOString(),
       series,
-    });
-  }, []);
+    };
+    setCustomForecasts((prev) => ({
+      ...prev,
+      [cauldronId]: forecast,
+    }));
+  }, [pickCauldronId]);
 
   const handleAddDemoDrain = () => addSampleDrainAndMatch();
 
@@ -258,7 +344,7 @@ export default function Home() {
     setDemoDrains([]);
     setDemoMatches([]);
     setDemoFindings([]);
-    setCustomForecast(null);
+    setCustomForecasts({});
   };
 
   const composerExistingIds = mapSource?.cauldrons?.map((c) => c.id) ?? [];
@@ -340,9 +426,9 @@ export default function Home() {
         throw new Error("No cauldron available for forecasting.");
       }
       const forecast = await runForecast({ cauldron_id: cauldronId, horizon_minutes: 240 });
-      setCustomForecast(forecast);
+      setCustomForecasts((prev) => ({ ...prev, [cauldronId]: forecast }));
     }, addSampleForecast);
-  }, [mapSource, runAction, setCustomForecast, addSampleForecast]);
+  }, [mapSource, runAction, addSampleForecast]);
 
   return (
     <main className="container-ppd">
@@ -354,13 +440,8 @@ export default function Home() {
         {/* LEFT SIDE — Map + Logs + Alerts + Forecast */}
         <div className="lg:col-span-8 min-w-0 space-y-6">
           {mapSource && <PotionMap data={mapSource} />}
-          <NetworkComposer
-            existingIds={composerExistingIds}
-            linkTargets={composerLinkTargets}
-            customNodes={customNodes}
-            onAdd={handleAddNode}
-          />
           <LogsTable matches={matches} drains={drains} />
+          <AgentFocus trace={trace} cauldrons={mapSource?.cauldrons ?? []} />
           <AlertsPanel findings={findings} />
           <ForecastCard title="Potion Level Forecast" f={primaryForecast} />
           <DemoLab
@@ -368,7 +449,17 @@ export default function Home() {
             onAddAlert={handleAddDemoAlert}
             onAddForecast={handleAddDemoForecast}
             onClear={handleClearDemo}
-            stats={{ drains: demoDrains.length, alerts: demoFindings.length, forecastActive: Boolean(customForecast) }}
+            stats={{
+              drains: demoDrains.length,
+              alerts: demoFindings.length,
+              forecastActive: Object.keys(customForecasts).length > 0,
+            }}
+          />
+          <NetworkComposer
+            existingIds={composerExistingIds}
+            linkTargets={composerLinkTargets}
+            customNodes={customNodes}
+            onAdd={handleAddNode}
           />
         </div>
 

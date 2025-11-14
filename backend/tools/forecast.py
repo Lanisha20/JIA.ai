@@ -47,6 +47,22 @@ def run_forecast(payload: ForecastRequest, session: Session = Depends(get_sessio
     if not level or not level.observed_at:
         raise HTTPException(status_code=400, detail="No telemetry available")
 
+    history_rows = (
+        session.query(CauldronLevel)
+        .filter(CauldronLevel.cauldron_id == cauldron.id)
+        .order_by(CauldronLevel.observed_at.desc())
+        .limit(360)
+        .all()
+    )
+    history = [
+        (
+            row.observed_at.isoformat().replace("+00:00", "Z"),
+            float(row.volume or 0.0),
+        )
+        for row in reversed(history_rows)
+        if row.observed_at
+    ]
+
     logic_payload = {
         "cauldron_id": cauldron.id,
         "horizon_min": payload.horizon_minutes,
@@ -57,6 +73,7 @@ def run_forecast(payload: ForecastRequest, session: Session = Depends(get_sessio
             "r_fill": cauldron.fill_rate or 0.0,
         },
         "scheduled_drains": [],
+        "history": history,
     }
     result = forecast_logic.run(logic_payload)
     return ForecastResponse(

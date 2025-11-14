@@ -21,7 +21,7 @@ function polarPosition(index: number, total: number) {
   };
 }
 
-function adaptState(state: any, findings: Finding[], forecast: Forecast | null): Overview {
+function adaptState(state: any, findings: Finding[], forecastMap: Record<string, Forecast>): Overview {
   const cauldronRows = Array.isArray(state.cauldrons) ? state.cauldrons : [];
   const drainRows = Array.isArray(state.drain_events) ? state.drain_events : [];
   const matchRows = Array.isArray(state.matches) ? state.matches : [];
@@ -71,6 +71,21 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
       row.logged_at ??
       new Date(fallbackNow - (traceRows.length - idx) * 60_000).toISOString();
 
+    const inputPayload = (row.input_payload && typeof row.input_payload === "object") ? row.input_payload : undefined;
+    const outputPayload = (row.output_payload && typeof row.output_payload === "object") ? row.output_payload : undefined;
+    const contextSource = row.context && typeof row.context === "object" ? row.context : undefined;
+    const nestedContext = inputPayload && typeof inputPayload.context === "object" ? inputPayload.context : undefined;
+    const cauldronId =
+      contextSource?.cauldron_id ??
+      nestedContext?.cauldron_id ??
+      inputPayload?.cauldron_id ??
+      outputPayload?.cauldron_id ??
+      row.cauldron_id;
+    const goal = contextSource?.goal ?? nestedContext?.goal ?? inputPayload?.goal ?? row.goal;
+    const strategy =
+      contextSource?.strategy ??
+      (outputPayload && typeof outputPayload.plan === "object" ? outputPayload.plan?.strategy : undefined);
+
     return {
       step: row.step ?? idx + 1,
       tool: row.action ?? row.tool ?? agent ?? `step-${idx + 1}`,
@@ -79,12 +94,18 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
       tags,
       created_at: createdAt,
       action: row.action ?? row.tool ?? undefined,
+      context:
+        cauldronId || goal || strategy
+          ? {
+              cauldron_id: cauldronId,
+              goal,
+              strategy,
+            }
+          : undefined,
+      input_payload: inputPayload,
+      output_payload: outputPayload,
     };
   });
-
-  const forecastBucket = forecast && cauldrons.length
-    ? { [cauldrons[0].id]: forecast }
-    : forecast;
 
   const network = state.network || { nodes: [], links: [] };
   const normalizedLinks: NetworkLink[] = (network.links || []).map((link: any) => ({
@@ -100,7 +121,7 @@ function adaptState(state: any, findings: Finding[], forecast: Forecast | null):
     drain_events: drains,
     matches,
     findings,
-    forecast: forecastBucket ?? null,
+    forecast: Object.keys(forecastMap).length ? forecastMap : null,
     trace,
   };
 }
@@ -140,12 +161,26 @@ export async function getOverview(): Promise<Overview> {
     const stateRes = await fetch(`${API_BASE}/state/overview`, { cache: "no-store" });
     if (!stateRes.ok) throw new Error("state");
     const state = await stateRes.json();
-    const cauldronId = Array.isArray(state.cauldrons) && state.cauldrons[0]?.cauldron_id;
-    const [findings, forecast] = await Promise.all([
+    const cauldronIds = Array.isArray(state.cauldrons)
+      ? state.cauldrons.map((c: any) => c?.cauldron_id).filter(Boolean)
+      : [];
+    const traceRows = Array.isArray(state.agent_trace) ? state.agent_trace : [];
+    const plannerTarget = traceRows.find((row: any) => row?.context?.cauldron_id)?.context?.cauldron_id;
+    const fetchTargets = Array.from(new Set([plannerTarget, ...cauldronIds.slice(0, 3)].filter(Boolean)));
+    const [findings, forecastEntries] = await Promise.all([
       fetchFindings(),
-      fetchForecast(cauldronId),
+      Promise.all(
+        fetchTargets.map(async (id: string) => {
+          const fc = await fetchForecast(id);
+          return [id, fc] as const;
+        }),
+      ),
     ]);
-    return adaptState(state, findings, forecast);
+    const forecastMap = forecastEntries.reduce<Record<string, Forecast>>((acc, [id, fc]) => {
+      if (fc) acc[id] = fc;
+      return acc;
+    }, {});
+    return adaptState(state, findings, forecastMap);
   } catch (error) {
     const fallback = await fetch("/overview.json", { cache: "no-store" });
     return fallback.json();
