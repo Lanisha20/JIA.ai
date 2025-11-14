@@ -47,3 +47,76 @@ body {
 /* ---------- Layout helpers ---------- */
 .container-ppd { @apply max-w-7xl mx-auto px-6; }
 .grid-ppd      { @apply grid grid-cols-1 lg:grid-cols-3 gap-6; }
+
+
+/* ===== Neon palette ===== */
+:root{
+    --glow-1: #a78bfa;  /* lavender */
+    --glow-2: #7c3aed;  /* deep violet */
+    --glow-3: #fde68a;  /* soft gold */
+  }
+  
+  /* ===== Glowing text ===== */
+  .glow-text{
+    color: #f7f2ff;
+    text-shadow:
+      0 0 .5rem var(--glow-1),
+      0 0 1.1rem var(--glow-1),
+      0 0 1.8rem var(--glow-2),
+      0 0 2.6rem var(--glow-2);
+    filter: saturate(115%);
+  }
+  
+  .glow-pulse{
+    animation: glowPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes glowPulse{
+    0%,100%{ text-shadow:
+      0 0 .45rem var(--glow-1),
+      0 0 1rem var(--glow-1),
+      0 0 1.6rem var(--glow-2),
+      0 0 2.4rem var(--glow-2); }
+    50%{ text-shadow:
+      0 0 .8rem var(--glow-1),
+      0 0 1.6rem var(--glow-1),
+      0 0 2.4rem var(--glow-2),
+      0 0 3.4rem var(--glow-2); }
+  }
+  
+  /* ===== Glow cursor ===== */
+  body.cursor-neon { cursor: none; }   /* opt-in so you can toggle */
+  
+  /* the dot that follows the mouse */
+  .glow-cursor{
+    position: fixed; left: 0; top: 0;
+    width: 18px; height: 18px; border-radius: 50%;
+    pointer-events: none; transform: translate3d(-50%,-50%,0);
+    mix-blend-mode: screen;
+    background: radial-gradient(circle,
+      rgba(167,139,250,0.95) 0%,
+      rgba(124,58,237,0.75) 50%,
+      rgba(124,58,237,0.0) 70%);
+    box-shadow:
+      0 0 12px rgba(167,139,250,.9),
+      0 0 28px rgba(124,58,237,.6),
+      0 0 48px rgba(124,58,237,.35);
+    transition: transform 35ms linear;
+    z-index: 9999;
+  }
+  
+  /* subtle aura */
+  .glow-cursor::after{
+    content:''; position:absolute; left:50%; top:50%;
+    width:200px; height:200px; transform: translate(-50%,-50%);
+    border-radius:50%; filter: blur(22px);
+    background: radial-gradient(circle,
+      rgba(253,230,138,.22) 0%,
+      rgba(124,58,237,.15) 45%,
+      rgba(124,58,237,0) 70%);
+  }
+  
+  /* accessibility: reduce motion = no pulsing cursor */
+  @media (prefers-reduced-motion: reduce){
+    .glow-pulse{ animation: none; }
+  }
+  
