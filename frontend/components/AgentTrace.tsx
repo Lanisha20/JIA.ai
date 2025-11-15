@@ -123,6 +123,11 @@ type DecoratedTrace = TraceStep & {
   hoverGlow: string;
 };
 
+type AgentTraceProps = {
+  trace?: TraceStep[];
+  plannerRan?: boolean;
+};
+
 function computeSizeMetrics(step: TraceStep): { ratio: number; label: string } {
   const summaryLength = (step.summary || "").length;
   const tagBonus = (step.tags?.length || 0) * 18;
@@ -133,11 +138,9 @@ function computeSizeMetrics(step: TraceStep): { ratio: number; label: string } {
   return { ratio, label: "intense" };
 }
 
-export default function AgentTrace({ trace = [] as TraceStep[] }) {
-  if (!trace.length) {
-    return null;
-  }
-  const displayTrace = trace;
+export default function AgentTrace({ trace = [] as TraceStep[], plannerRan = false }: AgentTraceProps) {
+  const displayTrace = trace.filter((step) => Boolean(step.agent));
+  const hasEntries = displayTrace.length > 0;
   const [page, setPage] = useState(0);
   const totalPages = Math.max(1, Math.ceil((displayTrace?.length ?? 0) / PAGE_SIZE));
   const pageIndex = Math.min(page, totalPages - 1);
@@ -175,7 +178,7 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
     <div className="card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gold">Nemotron Planner — Agent Trace</h3>
+          <h3 className="h-subtitle">Nemotron Planner — Agent Trace</h3>
           <p className="text-[11px] text-white/60">Live log of every autonomous step taken in this session.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -199,92 +202,100 @@ export default function AgentTrace({ trace = [] as TraceStep[] }) {
         </div>
       </div>
 
-      {displayTrace.length === 0 && <div className="text-sm text-white/70">No planner activity yet.</div>}
+      
 
-      <ol className="space-y-2.5">
-        {entries.map((entry) => (
-          <li
-            key={`${entry.step}-${entry.tool}`}
-            className={`group relative overflow-hidden rounded-2xl bg-gradient-to-r ${entry.theme.gradient} ${entry.theme.border} ${entry.theme.glow} transition duration-200 hover:-translate-y-0.5 hover:brightness-110`}
-          >
-            <span
-              aria-hidden="true"
-              className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${entry.theme.accentBar}`}
-            />
-            <span
-              aria-hidden="true"
-              className={`pointer-events-none absolute -right-6 top-1/2 h-24 w-24 -translate-y-1/2 blur-3xl ${entry.theme.flare}`}
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 blur-3xl"
-              style={{ background: entry.hoverGlow }}
-            />
+      {!hasEntries && (
+        <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/60">
+          {plannerRan ? "Awaiting Nemotron planner activity…" : "No planner activity yet."}
+        </div>
+      )}
 
-            <div className="relative flex gap-3 p-3">
-              <div className="flex flex-col items-center gap-0.5">
-                <span
-                  className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold tracking-tight ${entry.theme.stepBg}`}
-                >
-                  {String(entry.step).padStart(2, "0")}
-                </span>
-                <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">step</span>
-              </div>
-
-              <div className="flex-1 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  {entry.agent && (
-                    <span
-                      className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-full ${entry.theme.agentChip}`}
+      {hasEntries && (
+        <ol className="space-y-2.5">
+                  {entries.map((entry) => (
+                    <li
+                      key={`${entry.step}-${entry.tool}`}
+                      className={`group relative overflow-hidden rounded-2xl bg-gradient-to-r ${entry.theme.gradient} ${entry.theme.border} ${entry.theme.glow} transition duration-200 hover:-translate-y-0.5 hover:brightness-110`}
                     >
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-[10px]">
-                        {entry.initials}
-                      </span>
-                      {entry.agent}
-                    </span>
-                  )}
-                  {entry.timeLabel && <span className="text-[11px] text-white/60">{entry.timeLabel}</span>}
-                </div>
-
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.25em] text-white/50">action</p>
-                  <p className="text-base font-semibold text-white tracking-tight leading-tight">{entry.tool}</p>
-                  <p className="mt-0.5 text-sm text-white/75 leading-snug">{entry.summary}</p>
-                </div>
-
-                <div className="space-y-0.5">
-                  <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-white/40">
-                    <span>footprint</span>
-                    <span className="text-white/60">{entry.sizeLabel}</span>
-                  </div>
-                  <div className="h-1 rounded-full bg-white/10 overflow-hidden">
-                    <span
-                      className="block h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${Math.round(entry.sizeRatio * 100)}%`,
-                        background: `linear-gradient(90deg, ${entry.footprintColor}, ${entry.footprintColor}55)`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                {!!entry.tags?.length && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {entry.tags.map((tag) => (
                       <span
-                        key={tag}
-                        className={`px-2 py-0.5 text-[11px] uppercase tracking-wide rounded-full ${entry.theme.tagChip}`}
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ol>
+                        aria-hidden="true"
+                        className={`pointer-events-none absolute inset-y-0 left-0 w-1 bg-gradient-to-b ${entry.theme.accentBar}`}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={`pointer-events-none absolute -right-6 top-1/2 h-24 w-24 -translate-y-1/2 blur-3xl ${entry.theme.flare}`}
+                      />
+                      <span
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 blur-3xl"
+                        style={{ background: entry.hoverGlow }}
+                      />
+
+                      <div className="relative flex gap-3 p-3">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span
+                            className={`flex h-10 w-10 items-center justify-center rounded-2xl text-sm font-semibold tracking-tight ${entry.theme.stepBg}`}
+                          >
+                            {String(entry.step).padStart(2, "0")}
+                          </span>
+                          <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">step</span>
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {entry.agent && (
+                              <span
+                                className={`flex items-center gap-1.5 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded-full ${entry.theme.agentChip}`}
+                              >
+                                <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-[10px]">
+                                  {entry.initials}
+                                </span>
+                                {entry.agent}
+                              </span>
+                            )}
+                            {entry.timeLabel && <span className="text-[11px] text-white/60">{entry.timeLabel}</span>}
+                          </div>
+
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.25em] text-white/50">action</p>
+                            <p className="text-base font-semibold text-white tracking-tight leading-tight">{entry.tool}</p>
+                            <p className="mt-0.5 text-sm text-white/75 leading-snug">{entry.summary}</p>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <div className="flex items-center justify-between text-[9px] uppercase tracking-[0.3em] text-white/40">
+                              <span>footprint</span>
+                              <span className="text-white/60">{entry.sizeLabel}</span>
+                            </div>
+                            <div className="h-1 rounded-full bg-white/10 overflow-hidden">
+                              <span
+                                className="block h-full rounded-full transition-all duration-300"
+                                style={{
+                                  width: `${Math.round(entry.sizeRatio * 100)}%`,
+                                  background: `linear-gradient(90deg, ${entry.footprintColor}, ${entry.footprintColor}55)`,
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {!!entry.tags?.length && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {entry.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className={`px-2 py-0.5 text-[11px] uppercase tracking-wide rounded-full ${entry.theme.tagChip}`}
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+        </ol>
+      )}
     </div>
   );
 }

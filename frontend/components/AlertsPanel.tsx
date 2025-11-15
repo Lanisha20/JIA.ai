@@ -3,7 +3,7 @@ import { Finding } from "../types";
 export default function AlertsPanel({ findings }: { findings: Finding[] }) {
   return (
     <div className="card p-5">
-      <h3 className="text-lg font-semibold text-gold mb-3">Discrepancy Alerts</h3>
+      <h3 className="h-subtitle mb-3">Discrepancy Alerts</h3>
       <div className="space-y-3">
         {findings.length === 0 && <div className="text-sm text-white/70">No discrepancies detected.</div>}
         {findings.map((f, i) => (

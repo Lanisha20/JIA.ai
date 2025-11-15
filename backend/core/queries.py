@@ -208,6 +208,12 @@ def _trace_context(row: AgentTrace) -> Dict[str, Any]:
             if isinstance(first_payload, dict):
                 target_cauldron = first_payload.get("cauldron_id")
 
+    if not target_cauldron:
+        target_cauldron = raw_output.get("cauldron_id") or _find_cauldron_id(raw_output)
+
+    if not target_cauldron:
+        target_cauldron = raw_input.get("cauldron_id") or _find_cauldron_id(raw_input)
+
     goal = raw_input.get("goal") or (context_section.get("goal") if isinstance(context_section, dict) else None)
     strategy = None
     if isinstance(raw_output.get("plan"), dict):
@@ -221,6 +227,30 @@ def _trace_context(row: AgentTrace) -> Dict[str, Any]:
     if strategy:
         context["strategy"] = strategy
     return context
+
+
+def _find_cauldron_id(value: Any, depth: int = 0) -> Optional[str]:
+    if depth > 4 or value is None:
+        return None
+    if isinstance(value, dict):
+        direct = value.get("cauldron_id") or value.get("cauldronId")
+        if isinstance(direct, str) and direct:
+            return direct
+        for key in ("context", "payload", "target", "output", "input", "result", "response", "plan", "steps", "drain_events", "matches"):
+            if key in value:
+                found = _find_cauldron_id(value.get(key), depth + 1)
+                if found:
+                    return found
+        for sub in value.values():
+            found = _find_cauldron_id(sub, depth + 1)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for item in value[:6]:
+            found = _find_cauldron_id(item, depth + 1)
+            if found:
+                return found
+    return None
 
 
 def log_agent_trace(

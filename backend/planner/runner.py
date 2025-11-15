@@ -92,15 +92,19 @@ async def _call_nemotron(goal: str, context: Dict[str, Any]) -> Dict[str, Any]:
 
 def _fallback_plan(goal: str, context: Dict[str, Any]) -> Dict[str, Any]:
     goal_lower = goal.lower()
+    target_id = context.get("cauldron_id") or context.get("target_id") or "cauldron_001"
     steps: List[Dict[str, Any]] = []
-    if "detect" in goal_lower or "anomaly" in goal_lower:
+
+    # Always include detect/match to mirror UI expectations, but keep simple keyword awareness for ordering tweaks.
+    if "detect" in goal_lower or "anomaly" in goal_lower or not steps:
         steps.append({"tool": "detect", "payload": {"minutes": 180}})
-    if "match" in goal_lower or not steps:
-        steps.append({"tool": "match", "payload": {}})
-    if "audit" in goal_lower:
-        steps.append({"tool": "audit", "payload": {}})
-    if "forecast" in goal_lower:
-        steps.append({"tool": "forecast", "payload": {"cauldron_id": context.get("cauldron_id", "cauldron_001")}})
+
+    steps.append({"tool": "match", "payload": {}})
+
+    steps.append({"tool": "audit", "payload": {}})
+
+    steps.append({"tool": "forecast", "payload": {"cauldron_id": target_id}})
+
     return {"strategy": "fallback", "steps": steps}
 
 

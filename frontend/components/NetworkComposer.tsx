@@ -59,7 +59,7 @@ export default function NetworkComposer({ existingIds, linkTargets, customNodes,
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gold">Map Composer</h3>
+          <h3 className="h-subtitle">Map Composer</h3>
           <p className="text-xs text-white/60">Add custom cauldrons directly onto the potion network.</p>
         </div>
         <span className="badge">custom</span>

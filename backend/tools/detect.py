@@ -17,6 +17,15 @@ from backend.logic import detect as detect_logic
 router = APIRouter()
 
 
+def _pick_target_cauldron(payload_ids: Optional[List[str]], cauldrons: List[Cauldron], session: Session) -> Optional[str]:
+    if payload_ids:
+        return payload_ids[0]
+    if cauldrons:
+        return cauldrons[0].id
+    fallback = session.query(Cauldron.id).order_by(Cauldron.id).first()
+    return fallback[0] if fallback else None
+
+
 class DetectRequest(BaseModel):
     cauldron_ids: Optional[List[str]] = Field(default=None)
     minutes: int = Field(180, ge=30, le=1440)
@@ -76,11 +85,18 @@ def run_detect(payload: DetectRequest, session: Session = Depends(get_session)) 
             )
             session.add(drain)
 
+    target_id = _pick_target_cauldron(payload.cauldron_ids, cauldrons, session)
+    input_payload = payload.model_dump()
+    if target_id:
+        context = input_payload.get("context", {})
+        context["cauldron_id"] = target_id
+        input_payload["context"] = context
+
     queries.log_agent_trace(
         session,
         agent="nemotron",
         action="detect",
-        input_payload=payload.model_dump(),
+        input_payload=input_payload,
         output_payload=result,
         tags=["detect"],
     )

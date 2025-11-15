@@ -7,7 +7,7 @@ export default function ForecastCard({ title, f }: Props) {
   if (!f || !f.series || f.series.length < 2) {
     return (
       <div className="card p-5">
-        <h3 className="text-lg font-semibold text-gold">{title}</h3>
+        <h3 className="h-subtitle">{title}</h3>
         <p className="text-sm text-white/60 mt-3">No forecast data.</p>
       </div>
     );
@@ -74,7 +74,7 @@ export default function ForecastCard({ title, f }: Props) {
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gold">{title}</h3>
+        <h3 className="h-subtitle">{title}</h3>
         <div className="text-xs text-white/70">
           {f.overflow_eta
             ? `Overflow: ${new Date(f.overflow_eta).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`

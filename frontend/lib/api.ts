@@ -42,22 +42,36 @@ function adaptState(state: any, findings: Finding[], forecastMap: Record<string,
     };
   });
 
-  const drains: DrainEvent[] = drainRows.map((d: any) => ({
-    id: String(d.event_id),
-    cauldron_id: d.cauldron_id,
-    t_start: d.detected_at,
-    t_end: d.detected_at,
-    true_volume: Number(d.estimated_loss ?? 0),
-    level_drop: Number(d.estimated_loss ?? 0),
-  }));
+  const drains: DrainEvent[] = drainRows
+    .map((d: any) => ({
+      id: String(d.event_id),
+      cauldron_id: d.cauldron_id,
+      t_start: d.t_start ?? d.detected_at,
+      t_end: d.t_end ?? d.detected_at,
+      true_volume: Number(d.estimated_loss ?? d.true_volume ?? 0),
+      level_drop: Number(d.estimated_loss ?? d.level_drop ?? 0),
+    }))
+    .sort((a, b) => {
+      const aTime = new Date(a.t_end ?? a.t_start ?? 0).getTime();
+      const bTime = new Date(b.t_end ?? b.t_start ?? 0).getTime();
+      return bTime - aTime;
+    });
 
-  const matches: MatchRow[] = matchRows.map((m: any, idx: number) => ({
-    id: String(m.match_id ?? idx),
-    ticket_id: m.ticket ?? "unknown",
-    drain_event_id: String(m.drain_event_id ?? m.match_id ?? idx),
-    diff_volume: Number(m.discrepancy ?? 0),
-    status: m.status ?? "pending",
-  }));
+  const matches: MatchRow[] = matchRows
+    .map((m: any, idx: number) => ({
+      id: String(m.match_id ?? idx),
+      ticket_id: m.ticket ?? "unknown",
+      drain_event_id: String(m.drain_event_id ?? m.match_id ?? idx),
+      diff_volume: Number(m.discrepancy ?? 0),
+      status: m.status ?? "pending",
+      created_at: m.created_at,
+      cauldron_id: m.cauldron_id,
+    }))
+    .sort((a, b) => {
+      const aTime = new Date(a.created_at ?? 0).getTime();
+      const bTime = new Date(b.created_at ?? 0).getTime();
+      return bTime - aTime;
+    });
 
   const fallbackNow = Date.now();
   const trace: TraceStep[] = traceRows.map((row: any, idx: number) => {
@@ -128,7 +142,7 @@ function adaptState(state: any, findings: Finding[], forecastMap: Record<string,
 
 async function fetchFindings(): Promise<Finding[]> {
   try {
-    const res = await fetch(`${API_BASE}/tools/audit`, { method: "POST" });
+    const res = await fetch(`${API_BASE}/tools/audit?log=false`, { method: "POST" });
     if (!res.ok) return [];
     const body = await res.json();
     return body.findings ?? [];

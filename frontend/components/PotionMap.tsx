@@ -46,7 +46,7 @@ export default function PotionMap({ data }: Props) {
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-gold">Potion Network Map</h3>
+        <h3 className="h-subtitle">Potion Network Map</h3>
         <div className="flex gap-2">
           <span className="badge badge-verify">Live</span>
           <span className="badge">Playback</span>

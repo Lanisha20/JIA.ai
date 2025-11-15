@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { getOverview, runAudit, runDetect, runForecast, runMatch, runPlanner } from "../lib/api";
-import { Cauldron, DrainEvent, Finding, Forecast, MatchRow, NetworkLink, Overview } from "../types";
+import { Cauldron, DrainEvent, Finding, Forecast, MatchRow, NetworkLink, Overview, TraceStep } from "../types";
 
 import Header from "../components/Header";
 import PotionMap from "../components/PotionMap";
@@ -39,6 +39,8 @@ export default function Home() {
   const [demoMatches, setDemoMatches] = useState<MatchRow[]>([]);
   const [demoFindings, setDemoFindings] = useState<Finding[]>([]);
   const [customForecasts, setCustomForecasts] = useState<Record<string, Forecast>>({});
+  const [demoTrace, setDemoTrace] = useState<TraceStep[]>([]);
+  const [plannerRan, setPlannerRan] = useState(false);
   const [actionStatus, setActionStatus] = useState<Record<ActionKey, ActionState>>({
     detect: "idle",
     match: "idle",
@@ -210,10 +212,28 @@ export default function Home() {
 
   const mapSource = mapData ?? data;
 
-  const findings = [...(data?.findings ?? []), ...demoFindings];
-  const drains = [...(data?.drain_events ?? []), ...demoDrains];
-  const matches = [...(data?.matches ?? []), ...demoMatches];
-  const trace = data?.trace ?? [];
+  const findings = useMemo(
+    () => [...(data?.findings ?? []), ...demoFindings],
+    [data?.findings, demoFindings],
+  );
+  const drains = useMemo(
+    () => [...(data?.drain_events ?? []), ...demoDrains],
+    [data?.drain_events, demoDrains],
+  );
+  const matches = useMemo(
+    () => [...(data?.matches ?? []), ...demoMatches],
+    [data?.matches, demoMatches],
+  );
+  const drainCauldronOrder = useMemo(() => {
+    const ids = drains.map((d) => d.cauldron_id).filter(Boolean) as string[];
+    const unique = Array.from(new Set(ids));
+    if (unique.length > 0) return unique;
+    const sourceNodes = mapSource?.cauldrons ?? [];
+    return sourceNodes.map((c) => c.id).filter(Boolean);
+  }, [drains, mapSource]);
+  const hasBackendTrace = (data?.trace?.length ?? 0) > 0;
+  const traceSource = hasBackendTrace ? data?.trace ?? [] : demoTrace;
+  const trace = plannerRan ? traceSource : [];
 
   const forecastMap = (data?.forecast ?? {}) as Record<string, Forecast>;
   const plannerFocusedCauldron =
@@ -277,6 +297,87 @@ export default function Home() {
     demoIdRef.current += 1;
     return `C-demo-${demoIdRef.current}`;
   }, [data, customNodes]);
+
+  const seedDemoTrace = useCallback(
+    (options?: {
+      cauldronId?: string;
+      cauldronIds?: string[];
+      stages?: { key: string; label?: string; summary?: string }[];
+      insertAt?: "start" | "end";
+    }) => {
+      const targets = (options?.cauldronIds && options.cauldronIds.length > 0
+        ? options.cauldronIds
+        : [options?.cauldronId ?? pickCauldronId()]
+      ).filter((id): id is string => Boolean(id));
+      if (targets.length === 0) return;
+
+      setDemoTrace((prev) => {
+        const now = Date.now();
+        const MAX_ENTRIES = 48;
+        const entries: TraceStep[] = [];
+
+        targets.forEach((targetId, targetIdx) => {
+          const cauldronName =
+            mapSource?.cauldrons?.find((c) => c.id === targetId)?.name ?? targetId ?? "Unknown Cauldron";
+          const stageDefs =
+            options?.stages && options.stages.length > 0
+              ? options.stages
+              : [
+                  {
+                    key: "detect",
+                    label: "Detect",
+                    summary: `Scanning drains around ${cauldronName}`,
+                  },
+                  {
+                    key: "match",
+                    label: "Match",
+                    summary: `Reconciling tickets against ${cauldronName}`,
+                  },
+                  {
+                    key: "audit",
+                    label: "Audit",
+                    summary: `Auditing discrepancies for ${cauldronName}`,
+                  },
+                  {
+                    key: "forecast",
+                    label: "Forecast",
+                    summary: `Projecting fill levels for ${cauldronName}`,
+                  },
+                ];
+
+          stageDefs.forEach((stage, stageIdx) => {
+            const offsetMs = (targetIdx * stageDefs.length + stageIdx) * 4000;
+            entries.push({
+              step: Date.now() + entries.length,
+              tool: stage.key,
+              summary: stage.summary || `Running ${stage.key}`,
+              agent: `Nemotron ${stage.label || stage.key}`,
+              action: stage.key,
+              tags: [stage.key, targetId ?? "unknown"],
+              created_at: new Date(now - offsetMs).toISOString(),
+              context: {
+                cauldron_id: targetId,
+                goal: "Balance drains and tickets across the potion network.",
+                strategy: "fallback",
+              },
+              input_payload: {
+                cauldron_id: targetId,
+                context: { cauldron_id: targetId },
+              },
+              output_payload: {
+                cauldron_id: targetId,
+                status: "ok",
+              },
+            });
+          });
+        });
+
+        const next = options?.insertAt === "end" ? [...prev, ...entries] : [...entries, ...prev];
+        return next.slice(0, MAX_ENTRIES);
+      });
+    },
+    [pickCauldronId, mapSource],
+  );
 
   const addSampleDrainAndMatch = useCallback(() => {
     const cauldronId = pickCauldronId();
@@ -345,6 +446,8 @@ export default function Home() {
     setDemoMatches([]);
     setDemoFindings([]);
     setCustomForecasts({});
+    setDemoTrace([]);
+    setPlannerRan(false);
   };
 
   const composerExistingIds = mapSource?.cauldrons?.map((c) => c.id) ?? [];
@@ -395,29 +498,67 @@ export default function Home() {
   );
 
   const plannerFallback = useCallback(() => {
+    const targetId = pickCauldronId();
     addSampleDrainAndMatch();
     addSampleFinding();
     addSampleForecast();
-  }, [addSampleDrainAndMatch, addSampleFinding, addSampleForecast]);
+    const prioritized = drainCauldronOrder.length ? drainCauldronOrder.slice(0, 6) : targetId ? [targetId] : [];
+    seedDemoTrace({ cauldronIds: prioritized.length ? prioritized : undefined, cauldronId: targetId });
+  }, [
+    addSampleDrainAndMatch,
+    addSampleFinding,
+    addSampleForecast,
+    seedDemoTrace,
+    pickCauldronId,
+    drainCauldronOrder,
+  ]);
 
-  const handleRunPlanner = useCallback(
-    () =>
-      runAction(
-        "planner",
-        async () => {
-          const goal = "Balance drains and tickets across the potion network.";
-          await runPlanner({
-            goal,
-            context: {
-              cauldron_id: mapSource?.cauldrons?.[0]?.id,
-            },
-            dry_run: false,
-          });
-        },
-        plannerFallback,
-      ),
-    [mapSource, runAction, plannerFallback],
-  );
+  const handleRunPlanner = useCallback(() => {
+    const targetCauldronId = pickCauldronId();
+    runAction(
+      "planner",
+      async () => {
+        const goal = "Balance drains and tickets across the potion network.";
+        const cauldronId = targetCauldronId || mapSource?.cauldrons?.[0]?.id;
+        const response = await runPlanner({
+          goal,
+          context: {
+            cauldron_id: cauldronId,
+          },
+          dry_run: false,
+        });
+        const planTarget =
+          (response?.plan?.context && (response.plan.context as { cauldron_id?: string }).cauldron_id) || cauldronId;
+        const runtimeStages =
+          Array.isArray(response?.steps) && response.steps.length > 0
+            ? response.steps.map((step, idx) => {
+                const key = (step.tool || `step-${idx + 1}`).toLowerCase();
+                const label = step.tool ? step.tool.replace(/\b\w/g, (ch) => ch.toUpperCase()) : `Step ${idx + 1}`;
+                const summary =
+                  step.status === "error"
+                    ? `Error running ${step.tool ?? "tool"}`
+                    : step.response?.summary ??
+                      step.summary ??
+                      (step.status ? `${label} ${step.status}` : `Executed ${label}`);
+                return { key, label, summary };
+              })
+            : undefined;
+        const stageTargets = drainCauldronOrder.length
+          ? drainCauldronOrder
+          : [planTarget ?? cauldronId].filter(Boolean) as string[];
+        seedDemoTrace({
+          cauldronIds: stageTargets,
+          stages: runtimeStages,
+          insertAt: "end",
+        });
+        setPlannerRan(true);
+      },
+      () => {
+        plannerFallback();
+        setPlannerRan(true);
+      },
+    );
+  }, [mapSource, runAction, plannerFallback, pickCauldronId, seedDemoTrace, drainCauldronOrder]);
 
   const handleRunForecast = useCallback(() => {
     const cauldronId = mapSource?.cauldrons?.[0]?.id;
@@ -437,11 +578,19 @@ export default function Home() {
       <Poyo />
 
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* LEFT SIDE — Map + Logs + Alerts + Forecast */}
+        {/* LEFT SIDE — Actions + Map + Logs + Alerts + Forecast */}
         <div className="lg:col-span-8 min-w-0 space-y-6">
+          <ActionsPanel
+            onRefresh={fetchOverview}
+            onRunDetect={handleRunDetect}
+            onRunMatch={handleRunMatch}
+            onRunPlanner={handleRunPlanner}
+            onRunAudit={handleRunAudit}
+            onRunForecast={handleRunForecast}
+            status={actionStatus}
+          />
           {mapSource && <PotionMap data={mapSource} />}
           <LogsTable matches={matches} drains={drains} />
-          <AgentFocus trace={trace} cauldrons={mapSource?.cauldrons ?? []} />
           <AlertsPanel findings={findings} />
           <ForecastCard title="Potion Level Forecast" f={primaryForecast} />
           <DemoLab
@@ -455,26 +604,24 @@ export default function Home() {
               forecastActive: Object.keys(customForecasts).length > 0,
             }}
           />
+        </div>
+
+        {/* RIGHT SIDE — Nemotron Planner & Agent Focus */}
+        <div className="lg:col-span-4 min-w-0 space-y-6">
+          {data && <AgentTrace trace={trace} plannerRan={plannerRan} />}
+          <AgentFocus
+            trace={trace}
+            cauldrons={mapSource?.cauldrons ?? []}
+            plannerRan={plannerRan}
+            drains={drains}
+            matches={matches}
+          />
           <NetworkComposer
             existingIds={composerExistingIds}
             linkTargets={composerLinkTargets}
             customNodes={customNodes}
             onAdd={handleAddNode}
           />
-        </div>
-
-        {/* RIGHT SIDE — Actions + Trace */}
-        <div className="lg:col-span-4 min-w-0 space-y-6">
-          <ActionsPanel
-            onRefresh={fetchOverview}
-            onRunDetect={handleRunDetect}
-            onRunMatch={handleRunMatch}
-            onRunPlanner={handleRunPlanner}
-            onRunAudit={handleRunAudit}
-            onRunForecast={handleRunForecast}
-            status={actionStatus}
-          />
-          {data && <AgentTrace trace={trace} />}
         </div>
       </section>
 

@@ -11,10 +11,21 @@ from sqlalchemy.orm import Session
 
 from backend.core import queries
 from backend.core.db import get_session
-from backend.core.models import DrainEvent, MatchRecord, Ticket
+from backend.core.models import Cauldron, DrainEvent, MatchRecord, Ticket
 from backend.logic import match as match_logic
 
 router = APIRouter()
+
+
+def _pick_primary_cauldron(drains: List[DrainEvent], tickets: List[Ticket], session: Session) -> Optional[str]:
+    for drain in drains:
+        if drain.cauldron_id:
+            return drain.cauldron_id
+    for ticket in tickets:
+        if ticket.cauldron_id:
+            return ticket.cauldron_id
+    fallback = session.query(Cauldron.id).order_by(Cauldron.id).first()
+    return fallback[0] if fallback else None
 
 
 class MatchRequest(BaseModel):
@@ -89,11 +100,18 @@ def run_match(payload: MatchRequest, session: Session = Depends(get_session)) ->
         unmatched_drains=result.get("unmatched_drains", []),
     )
 
+    target_id = _pick_primary_cauldron(drains, tickets, session)
+    input_payload = payload.model_dump()
+    if target_id:
+        context = input_payload.get("context", {})
+        context["cauldron_id"] = target_id
+        input_payload["context"] = context
+
     queries.log_agent_trace(
         session,
         agent="nemotron",
         action="match",
-        input_payload=payload.model_dump(),
+        input_payload=input_payload,
         output_payload=response.model_dump(),
         tags=["match"],
     )

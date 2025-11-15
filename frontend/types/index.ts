@@ -14,6 +14,8 @@ export type MatchRow = {
   drain_event_id: string;
   diff_volume: number;
   status: string;
+  created_at?: string;
+  cauldron_id?: string;
 };
 
 export type Finding = {
