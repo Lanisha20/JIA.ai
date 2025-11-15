@@ -9,7 +9,7 @@ import AlertsPanel from "../components/AlertsPanel";
 import LogsTable from "../components/LogsTable";
 import ForecastCard from "../components/ForecastCard";
 import AgentTrace from "../components/AgentTrace";
-import AgentFocus from "../components/AgentFocus";
+import AgentsByCouldrent from "../components/AgentsByCouldrent";
 import ActionsPanel from "../components/ActionsPanel";
 import NetworkComposer from "../components/NetworkComposer";
 import DemoLab from "../components/DemoLab";
@@ -497,12 +497,12 @@ export default function Home() {
     [runAction, addSampleFinding],
   );
 
-  const plannerFallback = useCallback(() => {
-    const targetId = pickCauldronId();
+  const plannerFallback = useCallback((overrideTarget?: string) => {
+    const targetId = overrideTarget ?? pickCauldronId();
     addSampleDrainAndMatch();
     addSampleFinding();
     addSampleForecast();
-    const prioritized = drainCauldronOrder.length ? drainCauldronOrder.slice(0, 6) : targetId ? [targetId] : [];
+    const prioritized = targetId ? [targetId] : [];
     seedDemoTrace({ cauldronIds: prioritized.length ? prioritized : undefined, cauldronId: targetId });
   }, [
     addSampleDrainAndMatch,
@@ -510,7 +510,6 @@ export default function Home() {
     addSampleForecast,
     seedDemoTrace,
     pickCauldronId,
-    drainCauldronOrder,
   ]);
 
   const handleRunPlanner = useCallback(() => {
@@ -543,9 +542,8 @@ export default function Home() {
                 return { key, label, summary };
               })
             : undefined;
-        const stageTargets = drainCauldronOrder.length
-          ? drainCauldronOrder
-          : [planTarget ?? cauldronId].filter(Boolean) as string[];
+        const primaryTarget = planTarget ?? cauldronId;
+        const stageTargets = planTarget && planTarget !== cauldronId ? [primaryTarget] : [primaryTarget].filter(Boolean);
         seedDemoTrace({
           cauldronIds: stageTargets,
           stages: runtimeStages,
@@ -554,11 +552,11 @@ export default function Home() {
         setPlannerRan(true);
       },
       () => {
-        plannerFallback();
+        plannerFallback(targetCauldronId);
         setPlannerRan(true);
       },
     );
-  }, [mapSource, runAction, plannerFallback, pickCauldronId, seedDemoTrace, drainCauldronOrder]);
+  }, [mapSource, runAction, plannerFallback, pickCauldronId, seedDemoTrace]);
 
   const handleRunForecast = useCallback(() => {
     const cauldronId = mapSource?.cauldrons?.[0]?.id;
@@ -608,14 +606,18 @@ export default function Home() {
 
         {/* RIGHT SIDE — Nemotron Planner & Agent Focus */}
         <div className="lg:col-span-4 min-w-0 space-y-6">
-          {data && <AgentTrace trace={trace} plannerRan={plannerRan} />}
-          <AgentFocus
-            trace={trace}
-            cauldrons={mapSource?.cauldrons ?? []}
-            plannerRan={plannerRan}
-            drains={drains}
-            matches={matches}
-          />
+        {(data || plannerRan) && (
+          <>
+            <AgentTrace trace={trace} plannerRan={plannerRan} />
+            <AgentsByCouldrent
+              trace={trace}
+              plannerRan={plannerRan}
+                cauldrons={mapSource?.cauldrons ?? []}
+                drains={drains}
+                matches={matches}
+              />
+            </>
+          )}
           <NetworkComposer
             existingIds={composerExistingIds}
             linkTargets={composerLinkTargets}
