@@ -14,7 +14,7 @@ export default function LogsTable({ matches, drains }: { matches: MatchRow[]; dr
 
   return (
     <div className="card p-5">
-      <h3 className="text-lg font-semibold text-gold mb-3">Drain & Ticket Logs</h3>
+      <h3 className="h-subtitle mb-3">Drain & Ticket Logs</h3>
       <div className="overflow-hidden rounded-xl border border-[rgba(244,196,113,0.15)]">
         {rows.length === 0 && (
           <div className="px-4 py-6 text-sm text-white/70">No drains or matches yet.</div>

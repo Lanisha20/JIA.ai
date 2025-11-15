@@ -50,11 +50,6 @@
       { "ts": "2025-11-07T10:08:00Z", "type": "drain_end",   "cauldron_id": "C3", "id": "C3-evt" },
       { "ts": "2025-11-07T23:59:59Z", "type": "ticket_arrival", "ticket_id": "T150", "volume": 150 }
     ],
-    "trace": [
-      { "step": 1, "tool": "detect_drains", "summary": "1 event on C3" },
-      { "step": 2, "tool": "match_tickets", "summary": "1 match, Δ=97" },
-      { "step": 3, "tool": "audit_discrepancies", "summary": "over_report flagged" },
-      { "step": 4, "tool": "forecast_levels", "summary": "C3 overflow 13:32Z" }
-    ]
+    "trace": []
   }
   

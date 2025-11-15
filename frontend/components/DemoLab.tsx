@@ -15,7 +15,7 @@ export default function DemoLab({ onAddDrain, onAddAlert, onAddForecast, onClear
     <div className="card p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gold">Scenario Lab</h3>
+        <h3 className="h-subtitle">Scenario Lab</h3>
           <p className="text-xs text-white/60">Inject sample drains, tickets, forecasts, and alerts.</p>
         </div>
         <span className="badge badge-verify">scenario</span>

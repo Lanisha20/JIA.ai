@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from sqlalchemy import desc, func, select
@@ -17,46 +17,6 @@ from .models import (
     NetworkRoute,
     Ticket,
 )
-
-CANONICAL_TRACE = (
-    {
-        "action": "detect",
-        "tags": ["detect"],
-        "summary": lambda stats: (
-            f"Detected {stats['drains']} drain event{'s' if stats['drains'] != 1 else ''} from telemetry."
-            if stats["drains"]
-            else "Telemetry sweep completed; no new drains flagged."
-        ),
-    },
-    {
-        "action": "match",
-        "tags": ["match"],
-        "summary": lambda stats: (
-            f"Matched {stats['matches']} ticket{'s' if stats['matches'] != 1 else ''} to drains."
-            if stats["matches"]
-            else "Awaiting ticket data to reconcile with drains."
-        ),
-    },
-    {
-        "action": "audit",
-        "tags": ["audit"],
-        "summary": lambda stats: (
-            f"Raised {stats['findings']} discrepancy {'finding' if stats['findings'] == 1 else 'findings'}."
-            if stats["findings"]
-            else "Audit sweep came back clean."
-        ),
-    },
-    {
-        "action": "forecast",
-        "tags": ["forecast"],
-        "summary": lambda stats: (
-            "Projected overflow window for lead cauldron."
-            if stats["forecast_ready"]
-            else "Forecast queue idle—select a cauldron to project."
-        ),
-    },
-)
-
 
 def upsert_cauldron(session: Session, payload: Dict[str, Any]) -> Cauldron:
     cauldron_id = str(payload.get("id") or payload.get("cauldron_id"))
@@ -215,7 +175,6 @@ def recent_drain_events(session: Session, limit: int = 25) -> List[Dict[str, Any
 
 
 def agent_trace(session: Session, limit: int = 50) -> List[Dict[str, Any]]:
-    _ensure_agent_trace_activity(session)
     rows = session.query(AgentTrace).order_by(desc(AgentTrace.created_at), desc(AgentTrace.id)).limit(limit).all()
     return [
         {
@@ -224,68 +183,74 @@ def agent_trace(session: Session, limit: int = 50) -> List[Dict[str, Any]]:
             "tags": row.tags,
             "summary": (row.output_payload or {}).get("summary"),
             "created_at": row.created_at.isoformat(),
+            "context": _trace_context(row),
+            "input_payload": _serialize_payload(row.input_payload or {}),
+            "output_payload": _serialize_payload(row.output_payload or {}),
         }
         for row in rows
     ]
 
 
-def _ensure_agent_trace_activity(session: Session) -> None:
-    stats = _trace_stats(session)
-    total_rows = session.query(AgentTrace).count()
-    if total_rows == 0:
-        now = datetime.utcnow()
-        for idx, entry in enumerate(CANONICAL_TRACE):
-            _insert_trace_row(session, entry, stats, created_at=now - timedelta(minutes=len(CANONICAL_TRACE) - idx))
-        session.flush()
-        return
+def _trace_context(row: AgentTrace) -> Dict[str, Any]:
+    raw_input = row.input_payload if isinstance(row.input_payload, dict) else {}
+    raw_output = row.output_payload if isinstance(row.output_payload, dict) else {}
+    context_section = raw_input.get("context") if isinstance(raw_input.get("context"), dict) else {}
 
-    last_action = (
-        session.query(AgentTrace.action)
-        .order_by(desc(AgentTrace.created_at), desc(AgentTrace.id))
-        .limit(1)
-        .scalar()
-    )
-    next_entry = _next_trace_entry(last_action)
-    _insert_trace_row(session, next_entry, stats)
-    session.flush()
+    target_cauldron = context_section.get("cauldron_id") if isinstance(context_section, dict) else None
+    if not target_cauldron:
+        target_cauldron = raw_input.get("cauldron_id")
 
+    if not target_cauldron:
+        plan = raw_output.get("plan") if isinstance(raw_output.get("plan"), dict) else {}
+        steps = plan.get("steps")
+        if isinstance(steps, list) and steps:
+            first_payload = steps[0].get("payload") if isinstance(steps[0], dict) else {}
+            if isinstance(first_payload, dict):
+                target_cauldron = first_payload.get("cauldron_id")
 
-def _insert_trace_row(
-    session: Session,
-    entry: Dict[str, Any],
-    stats: Dict[str, int],
-    *,
-    created_at: Optional[datetime] = None,
-) -> None:
-    summary_fn = entry.get("summary")
-    summary_text = summary_fn(stats) if callable(summary_fn) else summary_fn
-    trace = AgentTrace(
-        agent="nemotron",
-        action=entry["action"],
-        input_payload={"auto": True},
-        output_payload={"summary": summary_text},
-        tags=entry.get("tags", []),
-        created_at=created_at or datetime.utcnow(),
-    )
-    session.add(trace)
+    if not target_cauldron:
+        target_cauldron = raw_output.get("cauldron_id") or _find_cauldron_id(raw_output)
+
+    if not target_cauldron:
+        target_cauldron = raw_input.get("cauldron_id") or _find_cauldron_id(raw_input)
+
+    goal = raw_input.get("goal") or (context_section.get("goal") if isinstance(context_section, dict) else None)
+    strategy = None
+    if isinstance(raw_output.get("plan"), dict):
+        strategy = raw_output["plan"].get("strategy")
+
+    context: Dict[str, Any] = {}
+    if target_cauldron:
+        context["cauldron_id"] = target_cauldron
+    if goal:
+        context["goal"] = goal
+    if strategy:
+        context["strategy"] = strategy
+    return context
 
 
-def _trace_stats(session: Session) -> Dict[str, int]:
-    return {
-        "drains": session.query(DrainEvent).count(),
-        "matches": session.query(MatchRecord).count(),
-        "findings": session.query(MatchRecord).filter(MatchRecord.discrepancy.isnot(None)).count(),
-        "forecast_ready": session.query(Cauldron).count() > 0,
-    }
-
-
-def _next_trace_entry(last_action: Optional[str]) -> Dict[str, Any]:
-    if not last_action:
-        return CANONICAL_TRACE[0]
-    for idx, entry in enumerate(CANONICAL_TRACE):
-        if entry["action"] == last_action:
-            return CANONICAL_TRACE[(idx + 1) % len(CANONICAL_TRACE)]
-    return CANONICAL_TRACE[0]
+def _find_cauldron_id(value: Any, depth: int = 0) -> Optional[str]:
+    if depth > 4 or value is None:
+        return None
+    if isinstance(value, dict):
+        direct = value.get("cauldron_id") or value.get("cauldronId")
+        if isinstance(direct, str) and direct:
+            return direct
+        for key in ("context", "payload", "target", "output", "input", "result", "response", "plan", "steps", "drain_events", "matches"):
+            if key in value:
+                found = _find_cauldron_id(value.get(key), depth + 1)
+                if found:
+                    return found
+        for sub in value.values():
+            found = _find_cauldron_id(sub, depth + 1)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for item in value[:6]:
+            found = _find_cauldron_id(item, depth + 1)
+            if found:
+                return found
+    return None
 
 
 def log_agent_trace(
@@ -406,3 +371,13 @@ def _safe_datetime(value: Any) -> Optional[datetime]:
         except ValueError:
             return None
     return None
+
+
+def _serialize_payload(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _serialize_payload(val) for key, val in value.items()}
+    if isinstance(value, list):
+        return [_serialize_payload(item) for item in value]
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return value

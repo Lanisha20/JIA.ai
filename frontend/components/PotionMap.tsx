@@ -32,13 +32,21 @@ export default function PotionMap({ data }: Props) {
       })
     : data.cauldrons || [];
   const links = data.network?.links ?? [];
-
   const derivedLinks = links;
+  const fallbackLinks =
+    derivedLinks.length === 0 && nodes.length > 1
+      ? nodes.slice(0, -1).map((node, idx) => ({
+          source: node.id,
+          target: nodes[idx + 1].id,
+          style: "dashed" as const,
+        }))
+      : [];
+  const visualLinks = derivedLinks.length ? derivedLinks : fallbackLinks;
 
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold text-gold">Potion Network Map</h3>
+        <h3 className="h-subtitle">Potion Network Map</h3>
         <div className="flex gap-2">
           <span className="badge badge-verify">Live</span>
           <span className="badge">Playback</span>
@@ -52,6 +60,22 @@ export default function PotionMap({ data }: Props) {
             No cauldron telemetry yet.
           </div>
         )}
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute left-6 right-8 bottom-10 h-px bg-white/10">
+            <div className="absolute left-0 -top-1 h-2 w-px bg-white/30" />
+            <div className="absolute right-0 -top-1 h-2 w-px bg-white/30" />
+            <span className="absolute right-0 -bottom-4 text-[10px] tracking-[0.2em] uppercase text-white/50">
+              X axis · flow span
+            </span>
+          </div>
+          <div className="absolute top-6 bottom-12 left-10 w-px bg-white/10">
+            <div className="absolute -left-1 top-0 w-2 h-px bg-white/30" />
+            <div className="absolute -left-1 bottom-0 w-2 h-px bg-white/30" />
+            <span className="absolute -left-6 top-0 -rotate-90 origin-top text-[10px] tracking-[0.2em] uppercase text-white/50">
+              Y axis · elevation
+            </span>
+          </div>
+        </div>
         <svg className="absolute inset-0 w-full h-full">
           <defs>
             <filter id="labelGlow" x="-50%" y="-50%" width="200%" height="200%">
@@ -63,7 +87,7 @@ export default function PotionMap({ data }: Props) {
             </filter>
           </defs>
           {/* links */}
-          {derivedLinks.map((l, idx) => {
+          {visualLinks.map((l, idx) => {
             const a = nodes.find((n) => n.id === l.source);
             const b = nodes.find((n) => n.id === l.target);
             if (!a || !b) return null;

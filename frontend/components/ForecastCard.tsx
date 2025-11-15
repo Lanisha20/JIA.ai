@@ -7,7 +7,7 @@ export default function ForecastCard({ title, f }: Props) {
   if (!f || !f.series || f.series.length < 2) {
     return (
       <div className="card p-5">
-        <h3 className="text-lg font-semibold text-gold">{title}</h3>
+        <h3 className="h-subtitle">{title}</h3>
         <p className="text-sm text-white/60 mt-3">No forecast data.</p>
       </div>
     );
@@ -44,15 +44,17 @@ export default function ForecastCard({ title, f }: Props) {
   // ---------- table prep (hourly snapshots) ----------
   // group by hour boundary (first point of each hour)
   const hourly = (() => {
-    const out: { time: string; value: number }[] = [];
+    const out: { time: string; value: number; ts: number }[] = [];
     let lastHour = -1;
     for (const p of pts) {
       const d = new Date(p.t);
       const hr = d.getUTCHours();
       if (hr !== lastHour) {
+        const label = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
         out.push({
-          time: d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          time: label,
           value: p.v,
+          ts: d.getTime(),
         });
         lastHour = hr;
       }
@@ -60,17 +62,19 @@ export default function ForecastCard({ title, f }: Props) {
     }
     // always include final point if it isn’t already captured
     const last = pts[pts.length - 1];
-    const lastLabel = new Date(last.t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const lastDate = new Date(last.t);
+    const lastLabel = lastDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     if (!out.find(r => r.time === lastLabel)) {
-      out.push({ time: lastLabel, value: last.v });
+      out.push({ time: lastLabel, value: last.v, ts: lastDate.getTime() });
     }
     return out.slice(0, 6);
   })();
+  const overflowTs = f.overflow_eta ? new Date(f.overflow_eta).getTime() : null;
 
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gold">{title}</h3>
+        <h3 className="h-subtitle">{title}</h3>
         <div className="text-xs text-white/70">
           {f.overflow_eta
             ? `Overflow: ${new Date(f.overflow_eta).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
@@ -115,18 +119,17 @@ export default function ForecastCard({ title, f }: Props) {
           </thead>
           <tbody className="divide-y divide-white/5">
             {hourly.map((r, i) => {
-              const isOverflow = f.overflow_eta && new Date(r.time) >= new Date(f.overflow_eta);
+              const isOverflow = overflowTs != null && r.ts >= overflowTs;
               return (
                 <tr key={i} className="bg-white/[0.02] hover:bg-white/[0.04]">
                   <td className="px-3 py-2">{r.time}</td>
                   <td className="px-3 py-2">{r.value.toFixed(1)} L</td>
                   <td className="px-3 py-2">
-                    {f.overflow_eta &&
-                      new Date(`${new Date().toISOString().slice(0,10)} ${r.time}`) >= new Date(f.overflow_eta) ? (
-                        <span className="badge badge-warn">after overflow</span>
-                      ) : (
-                        <span className="text-white/50">—</span>
-                      )}
+                    {isOverflow ? (
+                      <span className="badge badge-warn">after overflow</span>
+                    ) : (
+                      <span className="text-white/50">—</span>
+                    )}
                   </td>
                 </tr>
               );

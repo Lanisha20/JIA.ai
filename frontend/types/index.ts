@@ -14,6 +14,8 @@ export type MatchRow = {
   drain_event_id: string;
   diff_volume: number;
   status: string;
+  created_at?: string;
+  cauldron_id?: string;
 };
 
 export type Finding = {
@@ -63,6 +65,13 @@ export type TraceStep = {
   tags?: string[];
   created_at?: string;
   action?: string;
+  context?: {
+    cauldron_id?: string;
+    goal?: string;
+    strategy?: string;
+  };
+  input_payload?: Record<string, any>;
+  output_payload?: Record<string, any>;
 };
 
 export type NetworkLink = {
@@ -78,7 +87,7 @@ export type Overview = {
   drain_events: DrainEvent[];
   matches: MatchRow[];
   findings: Finding[];
-  forecast: Record<string, Forecast> | Forecast | null;
+  forecast: Record<string, Forecast> | null;
   timeline?: TimelineItem[];
   trace: TraceStep[];
 };
