@@ -2,3 +2,5 @@
 # Next.js build
 frontend/.next
 frontend/node_modules
+backend/data/app.db
+backend/data/app.db
