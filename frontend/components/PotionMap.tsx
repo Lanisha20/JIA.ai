@@ -94,11 +94,19 @@ export default function PotionMap({ data }: Props) {
             const ax = (a.x ?? 50) + "%", ay = (a.y ?? 50) + "%";
             const bx = (b.x ?? 50) + "%", by = (b.y ?? 50) + "%";
             const dashed = l.style === "dashed";
+            const isMarketLink = l.source === "enchanted-market" || l.target === "enchanted-market";
+            const strokeColor = isMarketLink ? "#F4C471" : dashed ? "#9E7CFD99" : "#F4C47188";
             return (
-              <line key={idx} x1={ax} y1={ay} x2={bx} y2={by}
-                    stroke={dashed ? "#9E7CFD99" : "#F4C47188"}
-                    strokeWidth={dashed ? 1.5 : 2}
-                    strokeDasharray={dashed ? "6 6" : undefined} />
+              <line
+                key={idx}
+                x1={ax}
+                y1={ay}
+                x2={bx}
+                y2={by}
+                stroke={strokeColor}
+                strokeWidth={isMarketLink ? 2.2 : dashed ? 1.5 : 2}
+                strokeDasharray={isMarketLink ? undefined : dashed ? "6 6" : undefined}
+              />
             );
           })}
 
@@ -108,8 +116,8 @@ export default function PotionMap({ data }: Props) {
             const yVal = n.y ?? 50;
             const x = `${xVal}%`;
             const y = `${yVal}%`;
-            const isMarket = n.id.toUpperCase().includes("MKT") || n.name?.toLowerCase().includes("market");
-            const fill = isMarket ? "#f2a365" : "#fbe0b5";
+            const isMarket = n.id === "enchanted-market";
+            const fill = isMarket ? "#d4770b" : "#fbe0b5";
             const ring = isMarket ? "#F4C471" : "#f0b679";
             const labelColor = isMarket ? "#F4C471" : "#fbead1";
             const p = pct(n);

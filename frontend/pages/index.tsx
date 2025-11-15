@@ -96,7 +96,9 @@ export default function Home() {
 
   const syntheticCauldrons = useMemo(() => {
     const drainSources = [...(data?.drain_events ?? []), ...demoDrains];
-    if (drainSources.length === 0) return [];
+    if (drainSources.length === 0 && customNodes.length === 0 && (data?.cauldrons?.length ?? 0) === 0) {
+      return [];
+    }
     const ids = Array.from(new Set(drainSources.map((d) => d.cauldron_id).filter(Boolean)));
     const dropTotals = drainSources.reduce<Record<string, number>>((acc, drain) => {
       if (!drain.cauldron_id) return acc;
@@ -129,6 +131,15 @@ export default function Home() {
     });
   }, [data, demoDrains]);
 
+  const stableHash = (seed: string) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash = (hash << 5) - hash + seed.charCodeAt(i);
+      hash |= 0;
+    }
+    return Math.abs(hash);
+  };
+
   const mapData = useMemo(() => {
     const hasLocalNodes = Boolean(data) || customNodes.length > 0 || syntheticCauldrons.length > 0;
     if (!hasLocalNodes) return null;
@@ -156,6 +167,32 @@ export default function Home() {
         cauldronMap.set(node.id, { ...node });
       }
     });
+    const existingIds = Array.from(cauldronMap.keys());
+    const lastCustomId = customNodeOrder[customNodeOrder.length - 1];
+    const specialTargetId = lastCustomId ?? existingIds[existingIds.length - 1] ?? null;
+    let marketCoords: { x: number; y: number } | null = null;
+    if (specialTargetId) {
+      const baseNode = cauldronMap.get(specialTargetId);
+      const baseX = baseNode?.x ?? 50;
+      const baseY = baseNode?.y ?? 50;
+      const angleSeed = stableHash(`${specialTargetId}-angle`);
+      const radiusSeed = stableHash(`${specialTargetId}-radius`);
+      const offsetAngle = ((angleSeed % 360) * Math.PI) / 180;
+      const offsetRadius = 8 + (radiusSeed % 15);
+      const x = Math.min(90, Math.max(10, Math.round(baseX + Math.cos(offsetAngle) * offsetRadius)));
+      const y = Math.min(90, Math.max(10, Math.round(baseY + Math.sin(offsetAngle) * offsetRadius)));
+      marketCoords = { x, y };
+      cauldronMap.set("enchanted-market", {
+        id: "enchanted-market",
+        name: "Enchanted Market",
+        x,
+        y,
+        vmax: 600,
+        last_volume: 280,
+        fill_percent: 45,
+        fill_rate: null,
+      } as Cauldron);
+    }
     const mergedCauldrons = Array.from(cauldronMap.values());
 
     const nodeMap = new Map<string, Cauldron>();
@@ -169,22 +206,40 @@ export default function Home() {
         nodeMap.set(node.id, { ...node });
       }
     });
+    if (specialTargetId && marketCoords) {
+      nodeMap.set("enchanted-market", {
+        id: "enchanted-market",
+        x: marketCoords.x,
+        y: marketCoords.y,
+        fill_percent: 45,
+      } as Cauldron);
+    }
     const mergedNetworkNodes = Array.from(nodeMap.values());
 
     const linkMap = new Map<string, NetworkLink>();
-    (base.network?.links ?? []).forEach((link) =>
+    (base.network?.links ?? []).forEach((link) => {
+      const sourceExists = cauldronMap.has(link.source) || link.source === "enchanted-market";
+      const targetExists = cauldronMap.has(link.target) || link.target === "enchanted-market";
+      if (!sourceExists || !targetExists) return;
       linkMap.set(`${link.source}->${link.target}`, {
         source: link.source,
         target: link.target,
         style: link.style ?? "solid",
-      }),
-    );
+      });
+    });
     customLinks.forEach((link) => {
       const key = `${link.source}->${link.target}`;
       if (!linkMap.has(key)) {
         linkMap.set(key, { source: link.source, target: link.target, style: "solid" });
       }
     });
+    if (specialTargetId && marketCoords) {
+      linkMap.set(`${specialTargetId}->enchanted-market`, {
+        source: specialTargetId,
+        target: "enchanted-market",
+        style: "solid",
+      });
+    }
 
     const networkNodeIds = new Set((mergedNetworkNodes ?? []).map((node) => node.id));
     const orderedLinks: NetworkLink[] = [];
@@ -198,7 +253,20 @@ export default function Home() {
       }
     }
     orderedLinks.forEach((link) => linkMap.set(`${link.source}->${link.target}`, link));
-    const mergedLinks = Array.from(linkMap.values());
+    let mergedLinks = Array.from(linkMap.values());
+
+    const chainNodes = mergedNetworkNodes.filter((node) => node.id !== "enchanted-market");
+    if (chainNodes.length > 1) {
+      for (let i = 0; i < chainNodes.length - 1; i += 1) {
+        const source = chainNodes[i].id;
+        const target = chainNodes[i + 1].id;
+        const key = `${source}->${target}`;
+        const reverseKey = `${target}->${source}`;
+        if (!linkMap.has(key) && !linkMap.has(reverseKey)) {
+          mergedLinks.push({ source, target, style: "dashed" });
+        }
+      }
+    }
 
     return {
       ...base,
@@ -242,12 +310,11 @@ export default function Home() {
     trace.find((step) => step.output_payload?.cauldron_id)?.output_payload?.cauldron_id ??
     mapSource?.cauldrons?.[0]?.id ??
     null;
-  const fallbackForecast = Object.values(customForecasts)[0] ?? Object.values(forecastMap)[0];
+  const fallbackForecast = plannerRan ? Object.values(customForecasts)[0] ?? Object.values(forecastMap)[0] : undefined;
   const primaryForecast =
-    (plannerFocusedCauldron &&
-      (customForecasts[plannerFocusedCauldron] ?? forecastMap[plannerFocusedCauldron])) ||
-    fallbackForecast ||
-    undefined;
+    plannerRan && plannerFocusedCauldron
+      ? customForecasts[plannerFocusedCauldron] ?? forecastMap[plannerFocusedCauldron] ?? fallbackForecast
+      : undefined;
 
   const handleAddNode = (draft: DraftNodePayload) => {
     const id = draft.id.trim();
@@ -590,7 +657,11 @@ export default function Home() {
           {mapSource && <PotionMap data={mapSource} />}
           <LogsTable matches={matches} drains={drains} />
           <AlertsPanel findings={findings} />
-          <ForecastCard title="Potion Level Forecast" f={primaryForecast} />
+          {plannerRan ? (
+            <ForecastCard title="Potion Level Forecast" f={primaryForecast} />
+          ) : (
+            <ForecastCard title="Potion Level Forecast" />
+          )}
           <DemoLab
             onAddDrain={handleAddDemoDrain}
             onAddAlert={handleAddDemoAlert}

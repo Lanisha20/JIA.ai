@@ -62,7 +62,7 @@ const ACTION_COLORS: { match: RegExp; primary: string; glow: string }[] = [
   { match: /forecast|predict/i, primary: "#9E7CFD", glow: "rgba(158,124,253,0.28)" },
 ];
 
-const ACTION_ACTIVE_WINDOW_MS = 2500;
+const ACTION_ACTIVE_WINDOW_MS = 5000;
 
 const AGENT_COLUMNS = [
   { key: "detect", label: "Detect", icon: "🔍" },
@@ -427,46 +427,49 @@ export default function AgentsByCouldrent({
               </div>
 
               <div className="flex items-center justify-between gap-2">
-                {AGENT_COLUMNS.map((col, idx) => {
-                  const colorTheme = ACTION_COLORS[idx % ACTION_COLORS.length];
-                  const themeColor = colorTheme?.primary ?? "#7AD3F3";
-                  const groupOffset = Math.abs(hashSeed(group.cauldronId)) % AGENT_COLUMNS.length;
-                  const pulseSlot = (pulseIndex + groupOffset + idx) % AGENT_COLUMNS.length;
-                  const isHighlighted = pulseSlot === 0;
-                  const isTrailing = pulseSlot === 1;
-                  const iconClass = `flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-all duration-300 ${
-                    isHighlighted
-                      ? "shadow shadow-emerald-400/40"
-                      : isTrailing
-                        ? "shadow shadow-emerald-400/10"
-                        : "text-white/40 border-white/15"
-                  }`;
-                  const activeStyle = isHighlighted
-                    ? {
-                        borderColor: themeColor,
-                        color: themeColor,
-                        boxShadow: `0 0 20px ${themeColor}88`,
-                        background: `linear-gradient(135deg, ${themeColor}33, ${themeColor}0A)`,
-                      }
-                    : isTrailing
+                {(() => {
+                  const offset = Math.abs(hashSeed(group.cauldronId)) % AGENT_COLUMNS.length;
+                  const highlightIdx = (pulseIndex + offset) % AGENT_COLUMNS.length;
+                  const trailingIdx = (highlightIdx - 1 + AGENT_COLUMNS.length) % AGENT_COLUMNS.length;
+                  return AGENT_COLUMNS.map((col, idx) => {
+                    const colorTheme = ACTION_COLORS[idx % ACTION_COLORS.length];
+                    const themeColor = colorTheme?.primary ?? "#7AD3F3";
+                    const isHighlighted = idx === highlightIdx;
+                    const isTrailing = idx === trailingIdx && highlightIdx !== trailingIdx;
+                    const iconClass = `flex h-10 w-10 items-center justify-center rounded-full border text-lg transition-all duration-300 ${
+                      isHighlighted
+                        ? "shadow shadow-emerald-400/40"
+                        : isTrailing
+                          ? "shadow shadow-emerald-400/10"
+                          : "text-white/40 border-white/15"
+                    }`;
+                    const activeStyle = isHighlighted
                       ? {
-                          borderColor: `${themeColor}55`,
-                          color: `${themeColor}99`,
-                          boxShadow: `0 0 10px ${themeColor}44`,
+                          borderColor: themeColor,
+                          color: themeColor,
+                          boxShadow: `0 0 20px ${themeColor}88`,
+                          background: `linear-gradient(135deg, ${themeColor}33, ${themeColor}0A)`,
                         }
-                      : {
-                          borderColor: "#ffffff22",
-                          color: "#ffffff55",
-                        };
-                  return (
-                    <div key={`${group.cauldronId}-${col.key}-icon`} className="flex flex-1 flex-col items-center gap-1">
-                      <span className={iconClass} style={activeStyle}>
-                        {col.icon}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-[0.3em] text-white/60">{col.label}</span>
-                    </div>
-                  );
-                })}
+                      : isTrailing
+                        ? {
+                            borderColor: `${themeColor}55`,
+                            color: `${themeColor}99`,
+                            boxShadow: `0 0 10px ${themeColor}44`,
+                          }
+                        : {
+                            borderColor: "#ffffff22",
+                            color: "#ffffff55",
+                          };
+                    return (
+                      <div key={`${group.cauldronId}-${col.key}-icon`} className="flex flex-1 flex-col items-center gap-1">
+                        <span className={iconClass} style={activeStyle}>
+                          {col.icon}
+                        </span>
+                        <span className="text-[10px] uppercase tracking-[0.3em] text-white/60">{col.label}</span>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
 
               {group.agents.size > 0 && (

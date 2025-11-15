@@ -48,16 +48,17 @@ export default function ActionsPanel({
       onRun: onRunDetect,
     },
     {
-      key: "match",
-      title: "Match Tickets",
-      desc: "Reconcile volumes between tickets and drains to update the Logs table.",
-      onRun: onRunMatch,
+      key: "planner",
+      title: "Planner",
+      desc: "",
+      onRun: onRunPlanner,
+      accent: "primary",
     },
     {
-      key: "planner",
-      title: "Planner (Detect + Match)",
-      desc: "Let Nemotron decide ordering and call tools automatically.",
-      onRun: onRunPlanner,
+      key: "match",
+      title: "Match Tickets",
+      desc: "Stitch planner insights with ticket volumes to refresh the logs.",
+      onRun: onRunMatch,
     },
     {
       key: "audit",
@@ -104,23 +105,36 @@ function ActionButton({
   action,
   state,
 }: {
-  action: { key: string; title: string; desc: string; onRun: () => void };
+  action: { key: string; title: string; desc: string; onRun: () => void; accent?: "primary" };
   state: ActionState;
 }) {
+  const isPrimary = action.accent === "primary";
+  const cardClass = isPrimary
+    ? "w-[230px] bg-gradient-to-b from-fuchsia-600/20 via-purple-600/10 to-indigo-700/20 border border-fuchsia-400/40 shadow-lg shadow-fuchsia-500/30 flex flex-col items-center text-center justify-center gap-3"
+    : "w-[200px] bg-black/20 border border-white/10";
+  const buttonLabel = state === "running" ? "Running…" : statusLabel[state] ?? "Run";
   return (
     <div
-      className={`flex flex-col items-start p-3 rounded-xl bg-black/20 border border-white/10 w-[200px] text-left hover:border-white/30 transition ${
+      className={`flex flex-col items-start p-3 rounded-xl text-left hover:border-white/50 transition ${cardClass} ${
         state === "running" ? "opacity-60 cursor-not-allowed" : ""
       }`}
     >
-      <span className="text-sm font-semibold text-white leading-tight">{action.title}</span>
-      <span className="text-xs text-white/60 mt-1">{action.desc}</span>
+      <span
+        className={`font-semibold text-white leading-tight ${
+          isPrimary ? "h-title text-white text-3xl md:text-4xl text-center mt-4" : "text-sm text-white"
+        }`}
+      >
+        {action.title}
+      </span>
+      {action.desc && <span className="text-xs text-white/60 mt-1">{action.desc}</span>}
       <button
         onClick={action.onRun}
         disabled={state === "running"}
-        className={`mt-3 btn px-3 py-1 text-xs ${state === "running" ? "opacity-60 cursor-not-allowed" : ""}`}
+        className={`mt-3 btn px-3 py-1 text-xs ${isPrimary ? "btn-verify text-white" : ""} ${
+          state === "running" ? "opacity-60 cursor-not-allowed" : ""
+        }`}
       >
-        {statusLabel[state] ?? "Run"}
+        {buttonLabel}
       </button>
     </div>
   );
