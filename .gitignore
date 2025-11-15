@@ -4,3 +4,10 @@ frontend/.next
 frontend/node_modules
 backend/data/app.db
 backend/data/app.db
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Local SQLite DB
+backend/data/app.db
+
