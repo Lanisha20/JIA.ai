@@ -4,7 +4,7 @@ type Props = { title: string; f?: Forecast };
 
 export default function ForecastCard({ title, f }: Props) {
   // guard
-  if (!f || !f.series || f.series.length < 2) {
+  if (!f || !Array.isArray(f.series) || f.series.length < 2) {
     return (
       <div className="card p-5">
         <h3 className="h-subtitle">{title}</h3>
@@ -16,7 +16,32 @@ export default function ForecastCard({ title, f }: Props) {
   // ---------- chart prep ----------
   // split into past (<= now) and future (> now) using client time
   const now = Date.now();
-  const pts = f.series.map(([ts, v]) => ({ t: new Date(ts).getTime(), v }));
+  const pts = f.series
+    .map((entry) => {
+      if (Array.isArray(entry)) {
+        const [ts, v] = entry;
+        const t = new Date(ts).getTime();
+        const value = typeof v === "number" ? v : Number(v);
+        return Number.isFinite(t) && Number.isFinite(value) ? { t, v: value } : null;
+      }
+      if (entry && typeof entry === "object") {
+        const ts = (entry as { ts?: string | number; time?: string | number; 0?: string | number }).ts ?? entry.time ?? entry[0];
+        const vVal = (entry as { v?: number; value?: number; 1?: number }).v ?? entry.value ?? entry[1];
+        const t = new Date(ts as any).getTime();
+        const value = typeof vVal === "number" ? vVal : Number(vVal);
+        return Number.isFinite(t) && Number.isFinite(value) ? { t, v: value } : null;
+      }
+      return null;
+    })
+    .filter((pt): pt is { t: number; v: number } => Boolean(pt));
+  if (pts.length < 2) {
+    return (
+      <div className="card p-5">
+        <h3 className="h-subtitle">{title}</h3>
+        <p className="text-sm text-white/60 mt-3">No forecast data.</p>
+      </div>
+    );
+  }
   let cut = pts.findIndex(p => p.t > now);
   if (cut === -1) cut = pts.length;         // all past/future edge cases
 
